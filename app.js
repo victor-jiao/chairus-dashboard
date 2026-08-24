@@ -15,8 +15,8 @@
   var CONFIG = Object.assign({}, DEFAULT_CONFIG);
   try { CONFIG = Object.assign(CONFIG, JSON.parse(lsGet("dash_config", "{}"))); } catch (e) {}
 
-  var ROI = {};
-  try { ROI = JSON.parse(lsGet("dash_roi", "{}")); } catch (e) {}
+  var ROI = Object.assign({}, window.DEFAULT_ROI || {});
+  try { var saved = JSON.parse(lsGet("dash_roi", "{}")); Object.assign(ROI, saved); } catch (e) {}
 
   var DISMISSED_WARNS = {};
   try { DISMISSED_WARNS = JSON.parse(lsGet("dash_dismissed_warns", "{}")); } catch (e) {}
@@ -680,14 +680,14 @@
     var rows = filteredDays(c).slice().sort(function (a, b) { return a.date < b.date ? 1 : -1; });
     var tot = { gmv: 0, orders: 0, qty: 0, exposure: 0, clicks: 0, add_cart: 0, refund: 0 };
     rows.forEach(function (d) { ["gmv", "orders", "qty", "exposure", "clicks", "add_cart", "refund"].forEach(function (k) { tot[k] += d[k]; }); });
-    var html = "<tr><th>日期</th><th>GMV</th><th>订单数</th><th>成交件数</th><th>曝光</th><th>点击</th><th>点击率</th><th>加购</th><th>加购率</th><th>CTOR</th><th>ROI</th><th>退款金额</th><th>退款率</th></tr>";
+    var html = "<tr><th>日期</th><th>GMV</th><th>订单数</th><th>成交件数</th><th>曝光</th><th>点击</th><th>点击率</th><th>自制视频曝光</th><th>自制视频点击</th><th>加购</th><th>加购率</th><th>CTOR</th><th>ROI</th><th>退款金额</th><th>退款率</th></tr>";
     var roiSum = 0, roiN = 0;
     html += rows.map(function (d) {
       var ctr = d.exposure ? d.clicks / d.exposure * 100 : 0, addr = d.clicks ? d.add_cart / d.clicks * 100 : 0, ctor = d.clicks ? d.orders / d.clicks * 100 : 0;
       var rr = d.gmv ? d.refund / d.gmv * 100 : 0;
       var rv = ROI[shop + "|" + d.date];
       if (rv !== undefined && rv !== null && rv !== "") { roiSum += Number(rv); roiN++; }
-      return "<tr><td>" + d.label + "</td><td>" + money(d.gmv) + "</td><td>" + int(d.orders) + "</td><td>" + int(d.qty) + "</td><td>" + int(d.exposure) + "</td><td>" + int(d.clicks) + "</td><td>" + pct1(ctr) + "</td><td>" + int(d.add_cart) + "</td><td>" + pct1(addr) + "</td><td>" + pct1(ctor) + "</td><td><input type='number' step='0.01' class='roi-in' data-shop='" + shop + "' data-date='" + d.date + "' value='" + (rv !== undefined ? esc(rv) : "") + "' placeholder='填ROI' style='width:80px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;text-align:right'></td><td>" + money(d.refund) + "</td><td>" + pct1(rr) + "</td></tr>";
+      return "<tr><td>" + d.label + "</td><td>" + money(d.gmv) + "</td><td>" + int(d.orders) + "</td><td>" + int(d.qty) + "</td><td>" + int(d.exposure) + "</td><td>" + int(d.clicks) + "</td><td>" + pct1(ctr) + "</td><td>" + int(d.video_exposure || 0) + "</td><td>" + int(d.video_clicks || 0) + "</td><td>" + int(d.add_cart) + "</td><td>" + pct1(addr) + "</td><td>" + pct1(ctor) + "</td><td><input type='number' step='0.01' class='roi-in' data-shop='" + shop + "' data-date='" + d.date + "' value='" + (rv !== undefined ? esc(rv) : "") + "' placeholder='填ROI' style='width:80px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;text-align:right'></td><td>" + money(d.refund) + "</td><td>" + pct1(rr) + "</td></tr>";
     }).join("");
     var ctr = tot.exposure ? tot.clicks / tot.exposure * 100 : 0, addr = tot.clicks ? tot.add_cart / tot.clicks * 100 : 0, ctor = tot.clicks ? tot.orders / tot.clicks * 100 : 0;
     var rr = tot.gmv ? tot.refund / tot.gmv * 100 : 0;
@@ -699,7 +699,7 @@
   function renderWeekly(shop, chartId, togglesId) {
     var c = ctx(shop);
     var rows = filteredWeeks(c);
-    var html = "<tr><th>周</th><th>区间</th><th>GMV</th><th>订单数</th><th>成交件数</th><th>曝光</th><th>点击</th><th>加购</th><th>点击率</th><th>加购率</th><th>CTOR</th><th>ROI (自动)</th></tr>";
+    var html = "<tr><th>周</th><th>区间</th><th>GMV</th><th>订单数</th><th>成交件数</th><th>曝光</th><th>点击</th><th>自制视频曝光</th><th>自制视频点击</th><th>加购</th><th>点击率</th><th>加购率</th><th>CTOR</th><th>ROI (自动)</th></tr>";
     var tot = { gmv: 0, orders: 0, qty: 0, exposure: 0, clicks: 0, add_cart: 0 };
     var roiSum = 0, roiN = 0;
     html += rows.map(function (w) {
@@ -775,58 +775,47 @@
   }
 
   function generateWarns(c) {
-    var ds = filteredDays(c);
     var ws = filteredWeeks(c);
     var warns = [];
     var shopPrefix = c.name || "TOTAL";
 
-    ds.forEach(function (d) {
-      var ctr = d.exposure ? d.clicks / d.exposure * 100 : 0;
-      var addr = d.clicks ? d.add_cart / d.clicks * 100 : 0;
-      var ctor = d.clicks ? d.orders / d.clicks * 100 : 0;
-      var rr = d.gmv ? d.refund / d.gmv * 100 : 0;
+    ws.forEach(function (w) {
+      var gmv = w.tot.gmv || 0;
+      var orders = w.tot.orders || 0;
+      var exp = w.tot.exposure || 0;
+      var clk = w.tot.clicks || 0;
+      var ac = w.tot.add_cart || 0;
+      var ref = w.tot.refund || 0;
 
-      if (ctr < CONFIG.ctrWarn && d.exposure > 500) {
-        var wid = shopPrefix + "|ctr|" + d.date;
-        warns.push({ id: wid, chart: "funnel", chartName: "【转化漏斗】", level: "warn", title: d.label + " 点击率偏低 (" + pct1(ctr) + ")", text: "曝光 " + int(d.exposure) + " 次但未有效转化为点击（低于阈值 " + CONFIG.ctrWarn + "%），建议优化主图与卖点。" });
+      var ctr = exp ? clk / exp * 100 : 0;
+      var addr = clk ? ac / clk * 100 : 0;
+      var ctor = clk ? orders / clk * 100 : 0;
+      var rr = gmv ? ref / gmv * 100 : 0;
+
+      if (ctr < CONFIG.ctrWarn && exp > 2000) {
+        warns.push({ id: shopPrefix + "|wctr|" + w.key, chart: "funnel", chartName: "【转化漏斗】", level: "warn", title: w.key + " 周 点击率偏低 (" + pct1(ctr) + ")", text: "该周总曝光 " + int(exp) + " 次，点击转化率低于阈值 " + CONFIG.ctrWarn + "%，建议优化主图与视频开头。" });
       }
-      if (addr < CONFIG.addWarn && d.clicks > 100) {
-        var wid2 = shopPrefix + "|addr|" + d.date;
-        warns.push({ id: wid2, chart: "funnel", chartName: "【转化漏斗】", level: "warn", title: d.label + " 加购率偏低 (" + pct1(addr) + ")", text: "点击 " + int(d.clicks) + " 次但加购不足（低于阈值 " + CONFIG.addWarn + "%），建议检查商品定价与优惠券。" });
+      if (addr < CONFIG.addWarn && clk > 500) {
+        warns.push({ id: shopPrefix + "|waddr|" + w.key, chart: "funnel", chartName: "【转化漏斗】", level: "warn", title: w.key + " 周 加购率偏低 (" + pct1(addr) + ")", text: "该周总点击 " + int(clk) + " 次，加购转化不足（低于阈值 " + CONFIG.addWarn + "%），建议检查商品价格与促销券。" });
       }
-      if (ctor < CONFIG.ctorWarn && d.clicks > 100) {
-        var wid3 = shopPrefix + "|ctor|" + d.date;
-        warns.push({ id: wid3, chart: "funnel", chartName: "【转化漏斗】", level: "crit", title: d.label + " CTOR 异常偏低 (" + pct1(ctor) + ")", text: "点击 " + int(d.clicks) + " 但未能产出订单（低于阈值 " + CONFIG.ctorWarn + "%），需排查结账流程。" });
+      if (ctor < CONFIG.ctorWarn && clk > 500) {
+        warns.push({ id: shopPrefix + "|wctor|" + w.key, chart: "funnel", chartName: "【转化漏斗】", level: "crit", title: w.key + " 周 CTOR异常偏低 (" + pct1(ctor) + ")", text: "该周点击转化成订单率过低（低于阈值 " + CONFIG.ctorWarn + "%），请排查SKU缺货或运费异常。" });
       }
-      if (rr > CONFIG.refundWarn && d.gmv > 1000) {
-        var wid4 = shopPrefix + "|ref|" + d.date;
-        warns.push({ id: wid4, chart: "trend", chartName: "【GMV趋势】", level: "crit", title: d.label + " 退款率过高 (" + pct1(rr) + ")", text: "退款金额 " + money(d.refund) + "，退款率高达 " + pct1(rr) + "（高于阈值 " + CONFIG.refundWarn + "%），建议排查质量或物流问题。" });
+      if (rr > CONFIG.refundWarn && gmv > 5000) {
+        warns.push({ id: shopPrefix + "|wref|" + w.key, chart: "trend", chartName: "【GMV趋势】", level: "crit", title: w.key + " 周 退款率偏高 (" + pct1(rr) + ")", text: "该周累计退款 " + money(ref) + "，退款率高达 " + pct1(rr) + "（高于阈值 " + CONFIG.refundWarn + "%），建议排查退款主力SKU。" });
       }
     });
-
-    for (var i = 1; i < ds.length; i++) {
-      var prev = ds[i - 1], cur = ds[i];
-      if (prev.gmv > 500) {
-        var drop = (prev.gmv - cur.gmv) / prev.gmv * 100;
-        if (drop >= CONFIG.dayDropWarn) {
-          var wid5 = shopPrefix + "|drop|" + cur.date;
-          warns.push({ id: wid5, chart: "trend", chartName: "【GMV趋势】", level: "crit", title: cur.label + " GMV 骤降 " + pct1(drop), text: "GMV 从 " + money(prev.gmv) + " 跌至 " + money(cur.gmv) + "，请排查爆品是否断货或达人视频热度下降。" });
-        }
-        var rise = (cur.gmv - prev.gmv) / prev.gmv * 100;
-        if (rise >= CONFIG.dayRiseWarn) {
-          var wid6 = shopPrefix + "|rise|" + cur.date;
-          warns.push({ id: wid6, chart: "trend", chartName: "【GMV趋势】", level: "info", title: cur.label + " GMV 爆发增长 " + pct1(rise), text: "GMV 达 " + money(cur.gmv) + "，主要由达人/视频渠道拉动，可加大该方向跟进投放。" });
-        }
-      }
-    }
 
     for (var j = 1; j < ws.length; j++) {
       var pw = ws[j - 1], cw = ws[j];
       if (pw.tot.gmv > 1000) {
         var wdrop = (pw.tot.gmv - cw.tot.gmv) / pw.tot.gmv * 100;
         if (wdrop >= CONFIG.weekDeclineWarn) {
-          var wid7 = shopPrefix + "|wdrop|" + cw.key;
-          warns.push({ id: wid7, chart: "skuweek", chartName: "【周销量/周GMV】", level: "crit", title: cw.key + " 周 GMV 环比下滑 " + pct1(wdrop), text: "周 GMV 从 " + money(pw.tot.gmv) + " 下降至 " + money(cw.tot.gmv) + "，建议调整选品结构与备货计划。" });
+          warns.push({ id: shopPrefix + "|wdrop|" + cw.key, chart: "skuweek", chartName: "【周销量/周GMV】", level: "crit", title: cw.key + " 周 GMV 环比下滑 " + pct1(wdrop), text: "周 GMV 从 " + money(pw.tot.gmv) + " 下降至 " + money(cw.tot.gmv) + "，请关注核心品类走势。" });
+        }
+        var wrise = (cw.tot.gmv - pw.tot.gmv) / pw.tot.gmv * 100;
+        if (wrise >= CONFIG.dayRiseWarn) {
+          warns.push({ id: shopPrefix + "|wrise|" + cw.key, chart: "skuweek", chartName: "【周销量/周GMV】", level: "info", title: cw.key + " 周 GMV 环比增长 " + pct1(wrise), text: "周 GMV 达 " + money(cw.tot.gmv) + "，表现强劲！" });
         }
       }
     }
@@ -981,8 +970,6 @@
       { name: "商家视频 GMV", v1: money(a1.video), v2: money(a2.video), tot: money(a1.video + a2.video), winner: a1.video >= a2.video ? "CHAIRUS" : "PLUS" },
       { name: "商城页 GMV", v1: money(a1.mall), v2: money(a2.mall), tot: money(a1.mall + a2.mall), winner: a1.mall >= a2.mall ? "CHAIRUS" : "PLUS" },
       { name: "达人推广 GMV", v1: money(a1.affil), v2: money(a2.affil), tot: money(a1.affil + a2.affil), winner: a1.affil >= a2.affil ? "CHAIRUS" : "PLUS" },
-      { name: "退款金额", v1: money(a1.refund), v2: money(a2.refund), tot: money(totRef), winner: a1.refund <= a2.refund ? "CHAIRUS (优)" : "PLUS (优)" },
-      { name: "退款率", v1: pct1(ref1), v2: pct1(ref2), tot: pct1(totGmv ? totRef / totGmv * 100 : 0), winner: ref1 <= ref2 ? "CHAIRUS (优)" : "PLUS (优)" }
     ];
 
     var html = '<thead><tr><th style="width:20%">对比指标</th><th style="width:22%;color:#2563eb">CHAIRUS</th><th style="width:22%;color:#ea580c">CHAIRUS PLUS</th><th style="width:20%;background:#f8fafc">两店合计 / 平均</th><th style="width:16%">优势方</th></tr></thead><tbody>';

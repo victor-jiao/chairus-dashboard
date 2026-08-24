@@ -169,7 +169,7 @@ def process_shop(name, path):
     pm = load_product_map(os.path.join(path, "商品信息.xlsx"))
     daily_files = []
     for fn in os.listdir(path):
-        if not fn.endswith(".xlsx"): continue
+        if not fn.endswith(".xlsx") or fn.startswith("~$") or "视频" in fn: continue
         if "订单" in fn: continue
         d = date_from_daily_name(fn)
         if d: daily_files.append((d, os.path.join(path, fn)))
@@ -217,6 +217,29 @@ def process_shop(name, path):
         detail_days.append({"date": ds, "label": f"{d.month}月{d.day}日", "headers": headers, "rows": rows})
         wb.close()
 
+    # 读取自制视频数据
+    self_video_map = {}
+    self_video_file = os.path.join(path, "6.22-8.16自制视频.xlsx")
+    if os.path.exists(self_video_file):
+        try:
+            vwb = openpyxl.load_workbook(self_video_file, data_only=True, read_only=False)
+            vws = vwb.worksheets[0]
+            for vrow in vws.iter_rows(min_row=4, values_only=True):
+                if not vrow or vrow[0] is None: continue
+                vdate_str = str(vrow[0]).strip()
+                if not vdate_str or vdate_str == "nan": continue
+                vexp = int(num(vrow[11])) if len(vrow) > 11 else 0
+                vclk = int(num(vrow[12])) if len(vrow) > 12 else 0
+                self_video_map[vdate_str] = {"exposure": vexp, "clicks": vclk}
+            vwb.close()
+        except Exception as ve:
+            print("Self video load error:", ve)
+
+    for x in days:
+        sv = self_video_map.get(x["date"], {"exposure": 0, "clicks": 0})
+        x["video_exposure"] = sv["exposure"]
+        x["video_clicks"] = sv["clicks"]
+
     week_map = {}
     for x in days:
         d = datetime.date.fromisoformat(x["date"])
@@ -224,11 +247,11 @@ def process_shop(name, path):
         key = f"{om}-{wn}"
         wk = week_map.setdefault(key, {"key": key, "month": om, "week": wn,
             "monday": mon.strftime("%Y-%m-%d"), "sunday": sun.strftime("%Y-%m-%d"),
-            "days": [], "tot": {k: 0.0 for k in ("gmv","orders","qty","exposure","clicks","add_cart","refund")},
+            "days": [], "tot": {k: 0.0 for k in ("gmv","orders","qty","exposure","clicks","add_cart","refund","video_exposure","video_clicks")},
             "cat": {}, "video_gmv": 0.0})
         wk["days"].append(x["date"])
         for k in wk["tot"]:
-            wk["tot"][k] += x[k] if k in ("gmv","refund") else float(x[k])
+            wk["tot"][k] += x.get(k, 0.0) if k in ("gmv","refund") else float(x.get(k, 0))
         wk["video_gmv"] = round(wk.get("video_gmv", 0.0) + x["sources"]["video"], 2)
         for cat in x["categories"]:
             cm = day_cat.get((x["date"], cat))
@@ -363,11 +386,11 @@ def merge_total(shops):
         for d in s["days"]:
             t = dmap.setdefault(d["date"], {"date": d["date"], "label": d["label"], "sources": {k: 0.0 for k in ("mall","video","affil","card","live")},
                 "orders": 0, "qty": 0, "customers": 0, "exposure": 0, "clicks": 0, "add_cart": 0,
-                "refund": 0.0, "refund_qty": 0, "categories": set()})
+                "refund": 0.0, "refund_qty": 0, "video_exposure": 0, "video_clicks": 0, "categories": set()})
             t["gmv"] = round(t.get("gmv", 0.0) + d["gmv"], 2)
             for k in t["sources"]: t["sources"][k] = round(t["sources"][k] + d["sources"][k], 2)
             t["orders"] += d["orders"]; t["qty"] += d["qty"]; t["customers"] += d["customers"]
-            t["exposure"] += d["exposure"]; t["clicks"] += d["clicks"]; t["add_cart"] += d["add_cart"]
+            t["exposure"] += d["exposure"]; t["clicks"] += d["clicks"]; t["add_cart"] += d["add_cart"]; t["video_exposure"] += d.get("video_exposure", 0); t["video_clicks"] += d.get("video_clicks", 0)
             t["refund"] = round(t["refund"] + d["refund"], 2); t["refund_qty"] += d["refund_qty"]
             t["categories"].update(d["categories"])
     days = []
@@ -382,7 +405,7 @@ def merge_total(shops):
             if w["key"] not in common: continue
             t = wmap.setdefault(w["key"], {"key": w["key"], "month": w["month"], "week": w["week"],
                 "monday": w["monday"], "sunday": w["sunday"], "days": w["days"][:],
-                "tot": {k: 0.0 for k in ("gmv","orders","qty","exposure","clicks","add_cart","refund")}, "cat": {}, "video_gmv": 0.0})
+                "tot": {k: 0.0 for k in ("gmv","orders","qty","exposure","clicks","add_cart","refund","video_exposure","video_clicks")}, "cat": {}, "video_gmv": 0.0})
             for k in t["tot"]: t["tot"][k] += w["tot"][k]
             t["video_gmv"] = round(t["video_gmv"] + w["video_gmv"], 2)
             for c, m in w["cat"].items():

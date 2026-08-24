@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="style.css">
 <script src="echarts.min.js"></script>
 <script src="data.js"></script>
+<script src="roi_data.js"></script>
 <script src="detail-data.js"></script>
 <script>
 (function () {
@@ -151,8 +152,8 @@
         <!-- 转化漏斗 -->
         <div class="chart-box">
           <div class="chart-header-row"><h3>🌪️ 转化漏斗（曝光→点击率→加购率→CTOR）</h3></div>
-          <div class="chart-alert-slot" id="alert-slot-funnel-ov"></div>
           <div class="chart" id="ch-funnel-ov"></div>
+          <div class="chart-alert-slot" id="alert-slot-funnel-ov"></div>
         </div>
 
         <!-- GMV 与订单趋势 (多维度) -->
@@ -169,8 +170,8 @@
               <select id="trend-ov-sub" style="display:none"></select>
             </div>
           </div>
-          <div class="chart-alert-slot" id="alert-slot-trend-ov"></div>
           <div class="chart" id="ch-trend-ov"></div>
+          <div class="chart-alert-slot" id="alert-slot-trend-ov"></div>
         </div>
 
         <!-- 月度 GMV 完成度 -->
@@ -280,8 +281,8 @@
 
           <div class="chart-box">
             <div class="chart-header-row"><h3>🌪️ 转化漏斗（曝光→点击率→加购率→CTOR）</h3></div>
-            <div class="chart-alert-slot" id="alert-slot-funnel-shop"></div>
             <div class="chart" id="ch-funnel-shop"></div>
+          <div class="chart-alert-slot" id="alert-slot-funnel-shop"></div>
           </div>
 
           <div class="chart-box">
@@ -302,8 +303,8 @@
                 <select id="trend-shop-sub" style="display:none"></select>
               </div>
             </div>
-            <div class="chart-alert-slot" id="alert-slot-trend-shop"></div>
             <div class="chart" id="ch-trend-shop"></div>
+          <div class="chart-alert-slot" id="alert-slot-trend-shop"></div>
           </div>
         </div>
       </div>
