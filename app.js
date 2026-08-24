@@ -430,20 +430,67 @@
     });
   }
 
-  function renderVideo(c, chartId) {
+    function renderVideo(c, chartId) {
     var ws = filteredWeeks(c);
+    var xData = ws.map(function (w) { return w.key + "周"; });
+    var selfExp = ws.map(function (w) { return w.tot.self_video_exposure || 0; });
+    var selfClk = ws.map(function (w) { return w.tot.self_video_clicks || 0; });
+    var affilExp = ws.map(function (w) { return w.tot.affil_video_exposure || 0; });
+    var affilClk = ws.map(function (w) { return w.tot.affil_video_clicks || 0; });
+
     setOpt(chartId, {
-      tooltip: { trigger: "axis" },
-      grid: { left: 55, right: 16, top: 24, bottom: 28 },
-      xAxis: Object.assign({ type: "category", data: ws.map(function (w) { return w.key; }) }, AXIS),
-      yAxis: Object.assign({ type: "value", name: "GMV ($)" }, AXIS),
-      series: [{
-        name: "商家视频 GMV", type: "bar", barWidth: "40%",
-        label: lbl(true, false, false), labelLayout: { hideOverlap: true },
-        markPoint: makeMarkPoint(),
-        itemStyle: { color: "#10b981" },
-        data: ws.map(function (w) { return Math.round(w.video_gmv || 0); })
-      }]
+      tooltip: Object.assign({}, TOOLTIP, { trigger: "axis" }),
+      legend: { data: ["自制视频曝光", "联盟视频曝光", "自制视频点击", "联盟视频点击"], top: 0, textStyle: { fontSize: 12 } },
+      grid: { left: 65, right: 65, top: 40, bottom: 25 },
+      xAxis: Object.assign({ type: "category", data: xData }, AXIS),
+      yAxis: [
+        Object.assign({ type: "value", name: "曝光数 (左轴)" }, AXIS),
+        Object.assign({ type: "value", name: "点击数 (右轴)", splitLine: { show: false } }, AXIS)
+      ],
+      series: [
+        {
+          name: "自制视频曝光",
+          type: "line",
+          smooth: true,
+          symbolSize: 8,
+          itemStyle: { color: "#8b5cf6" },
+          lineStyle: { width: 3 },
+          label: { show: true, position: "top", formatter: function (p) { return int(p.value); }, fontSize: 11, color: "#8b5cf6", fontWeight: "bold" },
+          data: selfExp
+        },
+        {
+          name: "联盟视频曝光",
+          type: "line",
+          smooth: true,
+          symbolSize: 8,
+          itemStyle: { color: "#3b82f6" },
+          lineStyle: { width: 3, type: "dashed" },
+          label: { show: true, position: "top", formatter: function (p) { return int(p.value); }, fontSize: 11, color: "#3b82f6", fontWeight: "bold" },
+          data: affilExp
+        },
+        {
+          name: "自制视频点击",
+          type: "line",
+          yAxisIndex: 1,
+          smooth: true,
+          symbolSize: 8,
+          itemStyle: { color: "#ec4899" },
+          lineStyle: { width: 3 },
+          label: { show: true, position: "bottom", formatter: function (p) { return int(p.value); }, fontSize: 11, color: "#ec4899", fontWeight: "bold" },
+          data: selfClk
+        },
+        {
+          name: "联盟视频点击",
+          type: "line",
+          yAxisIndex: 1,
+          smooth: true,
+          symbolSize: 8,
+          itemStyle: { color: "#f59e0b" },
+          lineStyle: { width: 3, type: "dashed" },
+          label: { show: true, position: "bottom", formatter: function (p) { return int(p.value); }, fontSize: 11, color: "#f59e0b", fontWeight: "bold" },
+          data: affilClk
+        }
+      ]
     });
   }
 
