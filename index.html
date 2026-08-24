@@ -17,9 +17,11 @@
     window.__unlocked = true;
     try { sessionStorage.setItem("dash_ok", "1"); } catch (e) {}
     var g = document.getElementById("gate"); if (g) g.style.display = "none";
-    if (window.__afterUnlock) window.__afterUnlock();
+    if (window.__afterUnlock) {
+      try { window.__afterUnlock(); } catch(e) { console.error("Render after unlock error:", e); }
+    }
   };
-  window.addEventListener("DOMContentLoaded", function () {
+  function initGate() {
     var pass = lsGet("dash_pass", "tiktok2026");
     var hint = document.getElementById("gate-hint");
     if (hint) hint.textContent = (pass === "tiktok2026") ? "默认访问密码 tiktok2026，可在配置页修改" : "";
@@ -29,11 +31,16 @@
       if (inp.value === pass) { window.__unlock(); }
       else { var m = document.getElementById("gate-msg"); if (m) m.textContent = "密码错误，请重新输入"; }
     }
-    if (btn) btn.addEventListener("click", tryGo);
-    if (inp) inp.addEventListener("keydown", function (e) { if (e.key === "Enter") tryGo(); });
+    if (btn) btn.onclick = tryGo;
+    if (inp) inp.onkeydown = function (e) { if (e.key === "Enter") tryGo(); };
     var ok = false; try { ok = sessionStorage.getItem("dash_ok") === "1"; } catch (e) {}
     if (ok) window.__unlock();
-  });
+  }
+  if (document.readyState === "loading") {
+    window.addEventListener("DOMContentLoaded", initGate);
+  } else {
+    initGate();
+  }
 })();
 </script>
 </head>
