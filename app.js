@@ -675,43 +675,150 @@
     $("#shop-meta").textContent = shop + " · 订单 " + int(rows.length) + " 行 / 日期 " + salesState[shop].from + " ~ " + salesState[shop].to + "（已剔除取消/退款）";
   }
 
-  function renderDaily(shop) {
+    function renderDaily(shop) {
     var c = ctx(shop);
     var rows = filteredDays(c).slice().sort(function (a, b) { return a.date < b.date ? 1 : -1; });
-    var tot = { gmv: 0, orders: 0, qty: 0, exposure: 0, clicks: 0, add_cart: 0, refund: 0 };
-    rows.forEach(function (d) { ["gmv", "orders", "qty", "exposure", "clicks", "add_cart", "refund"].forEach(function (k) { tot[k] += d[k]; }); });
-    var html = "<tr><th>日期</th><th>GMV</th><th>订单数</th><th>成交件数</th><th>曝光</th><th>点击</th><th>点击率</th><th>自制视频曝光</th><th>自制视频点击</th><th>加购</th><th>加购率</th><th>CTOR</th><th>ROI</th><th>退款金额</th><th>退款率</th></tr>";
+    var tot = { gmv: 0, orders: 0, qty: 0, exposure: 0, clicks: 0, add_cart: 0, refund: 0, self_exp: 0, self_clk: 0, affil_exp: 0, affil_clk: 0 };
+    var html = "<tr><th>日期</th><th>GMV</th><th>订单数</th><th>成交件数</th><th>曝光</th><th>点击</th><th>点击率</th><th>自制曝光</th><th>自制点击</th><th>联盟曝光</th><th>联盟点击</th><th>加购</th><th>加购率</th><th>CTOR</th><th>ROI</th><th>退款金额</th><th>退款率</th></tr>";
     var roiSum = 0, roiN = 0;
     html += rows.map(function (d) {
-      var ctr = d.exposure ? d.clicks / d.exposure * 100 : 0, addr = d.clicks ? d.add_cart / d.clicks * 100 : 0, ctor = d.clicks ? d.orders / d.clicks * 100 : 0;
+      tot.gmv += d.gmv || 0;
+      tot.orders += d.orders || 0;
+      tot.qty += d.qty || 0;
+      tot.exposure += d.exposure || 0;
+      tot.clicks += d.clicks || 0;
+      tot.add_cart += d.add_cart || 0;
+      tot.refund += d.refund || 0;
+      tot.self_exp += d.self_video_exposure || 0;
+      tot.self_clk += d.self_video_clicks || 0;
+      tot.affil_exp += d.affil_video_exposure || 0;
+      tot.affil_clk += d.affil_video_clicks || 0;
+
+      var ctr = d.exposure ? d.clicks / d.exposure * 100 : 0;
+      var addr = d.clicks ? d.add_cart / d.clicks * 100 : 0;
+      var ctor = d.clicks ? d.orders / d.clicks * 100 : 0;
       var rr = d.gmv ? d.refund / d.gmv * 100 : 0;
       var rv = ROI[shop + "|" + d.date];
       if (rv !== undefined && rv !== null && rv !== "") { roiSum += Number(rv); roiN++; }
-      return "<tr><td>" + d.label + "</td><td>" + money(d.gmv) + "</td><td>" + int(d.orders) + "</td><td>" + int(d.qty) + "</td><td>" + int(d.exposure) + "</td><td>" + int(d.clicks) + "</td><td>" + pct1(ctr) + "</td><td>" + int(d.video_exposure || 0) + "</td><td>" + int(d.video_clicks || 0) + "</td><td>" + int(d.add_cart) + "</td><td>" + pct1(addr) + "</td><td>" + pct1(ctor) + "</td><td><input type='number' step='0.01' class='roi-in' data-shop='" + shop + "' data-date='" + d.date + "' value='" + (rv !== undefined ? esc(rv) : "") + "' placeholder='填ROI' style='width:80px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;text-align:right'></td><td>" + money(d.refund) + "</td><td>" + pct1(rr) + "</td></tr>";
+
+      var roiInput = "<input type='number' step='0.01' class='roi-in' data-shop='" + shop + "' data-date='" + d.date + "' value='" + (rv !== undefined ? esc(rv) : "") + "' placeholder='填ROI' style='width:75px;padding:3px 5px;border:1px solid var(--line);border-radius:6px;text-align:right'>";
+
+      return "<tr>" +
+        "<td>" + d.label + "</td>" +
+        "<td>" + money(d.gmv) + "</td>" +
+        "<td>" + int(d.orders) + "</td>" +
+        "<td>" + int(d.qty) + "</td>" +
+        "<td>" + int(d.exposure) + "</td>" +
+        "<td>" + int(d.clicks) + "</td>" +
+        "<td>" + pct1(ctr) + "</td>" +
+        "<td>" + int(d.self_video_exposure || 0) + "</td>" +
+        "<td>" + int(d.self_video_clicks || 0) + "</td>" +
+        "<td>" + int(d.affil_video_exposure || 0) + "</td>" +
+        "<td>" + int(d.affil_video_clicks || 0) + "</td>" +
+        "<td>" + int(d.add_cart) + "</td>" +
+        "<td>" + pct1(addr) + "</td>" +
+        "<td>" + pct1(ctor) + "</td>" +
+        "<td>" + roiInput + "</td>" +
+        "<td>" + money(d.refund) + "</td>" +
+        "<td>" + pct1(rr) + "</td>" +
+        "</tr>";
     }).join("");
-    var ctr = tot.exposure ? tot.clicks / tot.exposure * 100 : 0, addr = tot.clicks ? tot.add_cart / tot.clicks * 100 : 0, ctor = tot.clicks ? tot.orders / tot.clicks * 100 : 0;
+
+    var ctr = tot.exposure ? tot.clicks / tot.exposure * 100 : 0;
+    var addr = tot.clicks ? tot.add_cart / tot.clicks * 100 : 0;
+    var ctor = tot.clicks ? tot.orders / tot.clicks * 100 : 0;
     var rr = tot.gmv ? tot.refund / tot.gmv * 100 : 0;
-    html += '<tr class="tr-total"><td>合计</td><td>' + money(tot.gmv) + '</td><td>' + int(tot.orders) + '</td><td>' + int(tot.qty) + '</td><td>' + int(tot.exposure) + '</td><td>' + int(tot.clicks) + '</td><td>' + pct1(ctr) + '</td><td>' + int(tot.add_cart) + '</td><td>' + pct1(addr) + '</td><td>' + pct1(ctor) + '</td><td>' + (roiN ? num2(roiSum / roiN) : "") + '</td><td>' + money(tot.refund) + '</td><td>' + pct1(rr) + '</td></tr>';
+
+    html += '<tr class="tr-total">' +
+      '<td>合计</td>' +
+      '<td>' + money(tot.gmv) + '</td>' +
+      '<td>' + int(tot.orders) + '</td>' +
+      '<td>' + int(tot.qty) + '</td>' +
+      '<td>' + int(tot.exposure) + '</td>' +
+      '<td>' + int(tot.clicks) + '</td>' +
+      '<td>' + pct1(ctr) + '</td>' +
+      '<td>' + int(tot.self_exp) + '</td>' +
+      '<td>' + int(tot.self_clk) + '</td>' +
+      '<td>' + int(tot.affil_exp) + '</td>' +
+      '<td>' + int(tot.affil_clk) + '</td>' +
+      '<td>' + int(tot.add_cart) + '</td>' +
+      '<td>' + pct1(addr) + '</td>' +
+      '<td>' + pct1(ctor) + '</td>' +
+      '<td>' + (roiN ? num2(roiSum / roiN) : "-") + '</td>' +
+      '<td>' + money(tot.refund) + '</td>' +
+      '<td>' + pct1(rr) + '</td>' +
+      '</tr>';
     $("#tbl-daily-shop").innerHTML = html;
     $("#shop-meta").textContent = shop + " · " + rows.length + " 天（" + state.from + " ~ " + state.to + "）";
   }
 
-  function renderWeekly(shop, chartId, togglesId) {
+    function renderWeekly(shop, chartId, togglesId) {
     var c = ctx(shop);
     var rows = filteredWeeks(c);
-    var html = "<tr><th>周</th><th>区间</th><th>GMV</th><th>订单数</th><th>成交件数</th><th>曝光</th><th>点击</th><th>自制视频曝光</th><th>自制视频点击</th><th>加购</th><th>点击率</th><th>加购率</th><th>CTOR</th><th>ROI (自动)</th></tr>";
-    var tot = { gmv: 0, orders: 0, qty: 0, exposure: 0, clicks: 0, add_cart: 0 };
+    var html = "<tr><th>周</th><th>区间</th><th>GMV</th><th>订单数</th><th>成交件数</th><th>曝光</th><th>点击</th><th>点击率</th><th>自制曝光</th><th>自制点击</th><th>联盟曝光</th><th>联盟点击</th><th>加购</th><th>加购率</th><th>CTOR</th><th>ROI (自动)</th></tr>";
+    var tot = { gmv: 0, orders: 0, qty: 0, exposure: 0, clicks: 0, add_cart: 0, self_exp: 0, self_clk: 0, affil_exp: 0, affil_clk: 0 };
     var roiSum = 0, roiN = 0;
     html += rows.map(function (w) {
-      ["gmv", "orders", "qty", "exposure", "clicks", "add_cart"].forEach(function (k) { tot[k] += w.tot[k]; });
-      var ctr = w.tot.exposure ? w.tot.clicks / w.tot.exposure * 100 : 0, addr = w.tot.clicks ? w.tot.add_cart / w.tot.clicks * 100 : 0, ctor = w.tot.clicks ? w.tot.orders / w.tot.clicks * 100 : 0;
+      tot.gmv += w.tot.gmv || 0;
+      tot.orders += w.tot.orders || 0;
+      tot.qty += w.tot.qty || 0;
+      tot.exposure += w.tot.exposure || 0;
+      tot.clicks += w.tot.clicks || 0;
+      tot.add_cart += w.tot.add_cart || 0;
+      tot.self_exp += w.tot.self_video_exposure || 0;
+      tot.self_clk += w.tot.self_video_clicks || 0;
+      tot.affil_exp += w.tot.affil_video_exposure || 0;
+      tot.affil_clk += w.tot.affil_video_clicks || 0;
+
+      var ctr = w.tot.exposure ? w.tot.clicks / w.tot.exposure * 100 : 0;
+      var addr = w.tot.clicks ? w.tot.add_cart / w.tot.clicks * 100 : 0;
+      var ctor = w.tot.clicks ? w.tot.orders / w.tot.clicks * 100 : 0;
       var effRoi = getEffectiveWeeklyRoi(shop, w);
       if (effRoi !== null) { roiSum += effRoi; roiN++; }
       var manual = ROI[shop + "|w|" + w.key];
-      return "<tr><td>" + w.key + "</td><td>" + w.monday.slice(5) + "~" + w.sunday.slice(5) + "</td><td>" + money(w.tot.gmv) + "</td><td>" + int(w.tot.orders) + "</td><td>" + int(w.tot.qty) + "</td><td>" + int(w.tot.exposure) + "</td><td>" + int(w.tot.clicks) + "</td><td>" + int(w.tot.add_cart) + "</td><td>" + pct1(ctr) + "</td><td>" + pct1(addr) + "</td><td>" + pct1(ctor) + "</td><td><input type='number' step='0.01' class='roi-in-week' data-shop='" + shop + "' data-week='" + w.key + "' value='" + (manual !== undefined && manual !== null && manual !== "" ? esc(manual) : (effRoi !== null ? effRoi.toFixed(2) : "")) + "' placeholder='自动' style='width:80px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;text-align:right'></td></tr>";
+      var autoRoiHtml = "<input type='number' step='0.01' class='roi-in-week' data-shop='" + shop + "' data-week='" + w.key + "' value='" + (manual !== undefined && manual !== null && manual !== "" ? esc(manual) : (effRoi !== null ? effRoi.toFixed(2) : "")) + "' placeholder='自动' style='width:75px;padding:3px 5px;border:1px solid var(--line);border-radius:6px;text-align:right'>";
+
+      return "<tr>" +
+        "<td>" + w.key + "</td>" +
+        "<td>" + w.monday.slice(5) + "~" + w.sunday.slice(5) + "</td>" +
+        "<td>" + money(w.tot.gmv) + "</td>" +
+        "<td>" + int(w.tot.orders) + "</td>" +
+        "<td>" + int(w.tot.qty) + "</td>" +
+        "<td>" + int(w.tot.exposure) + "</td>" +
+        "<td>" + int(w.tot.clicks) + "</td>" +
+        "<td>" + pct1(ctr) + "</td>" +
+        "<td>" + int(w.tot.self_video_exposure || 0) + "</td>" +
+        "<td>" + int(w.tot.self_video_clicks || 0) + "</td>" +
+        "<td>" + int(w.tot.affil_video_exposure || 0) + "</td>" +
+        "<td>" + int(w.tot.affil_video_clicks || 0) + "</td>" +
+        "<td>" + int(w.tot.add_cart) + "</td>" +
+        "<td>" + pct1(addr) + "</td>" +
+        "<td>" + pct1(ctor) + "</td>" +
+        "<td>" + autoRoiHtml + "</td>" +
+        "</tr>";
     }).join("");
-    var ctr = tot.exposure ? tot.clicks / tot.exposure * 100 : 0, addr = tot.clicks ? tot.add_cart / tot.clicks * 100 : 0, ctor = tot.clicks ? tot.orders / tot.clicks * 100 : 0;
-    html += '<tr class="tr-total"><td>合计</td><td></td><td>' + money(tot.gmv) + '</td><td>' + int(tot.orders) + '</td><td>' + int(tot.qty) + '</td><td>' + int(tot.exposure) + '</td><td>' + int(tot.clicks) + '</td><td>' + int(tot.add_cart) + '</td><td>' + pct1(ctr) + '</td><td>' + pct1(addr) + '</td><td>' + pct1(ctor) + '</td><td>' + (roiN ? num2(roiSum / roiN) : "") + '</td></tr>';
+
+    var ctr = tot.exposure ? tot.clicks / tot.exposure * 100 : 0;
+    var addr = tot.clicks ? tot.add_cart / tot.clicks * 100 : 0;
+    var ctor = tot.clicks ? tot.orders / tot.clicks * 100 : 0;
+    html += '<tr class="tr-total">' +
+      '<td>合计</td>' +
+      '<td>-</td>' +
+      '<td>' + money(tot.gmv) + '</td>' +
+      '<td>' + int(tot.orders) + '</td>' +
+      '<td>' + int(tot.qty) + '</td>' +
+      '<td>' + int(tot.exposure) + '</td>' +
+      '<td>' + int(tot.clicks) + '</td>' +
+      '<td>' + pct1(ctr) + '</td>' +
+      '<td>' + int(tot.self_exp) + '</td>' +
+      '<td>' + int(tot.self_clk) + '</td>' +
+      '<td>' + int(tot.affil_exp) + '</td>' +
+      '<td>' + int(tot.affil_clk) + '</td>' +
+      '<td>' + int(tot.add_cart) + '</td>' +
+      '<td>' + pct1(addr) + '</td>' +
+      '<td>' + pct1(ctor) + '</td>' +
+      '<td>' + (roiN ? num2(roiSum / roiN) : "-") + '</td>' +
+      '</tr>';
     $("#tbl-weekly-shop").innerHTML = html;
     renderSkuWeekGmv(shop, chartId, togglesId);
   }
