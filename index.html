@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TikTok 双店铺数据看板</title>
+<link rel="stylesheet" href="style.css">
+<script src="echarts.min.js"></script>
+<script src="data.js"></script>
+<script src="detail-data.js"></script>
+<script>
+(function () {
+  function lsGet(k, d) { try { var v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } }
+  window.__unlocked = false;
+  window.__unlock = function () {
+    window.__unlocked = true;
+    try { sessionStorage.setItem("dash_ok", "1"); } catch (e) {}
+    var g = document.getElementById("gate"); if (g) g.style.display = "none";
+    if (window.__afterUnlock) window.__afterUnlock();
+  };
+  window.addEventListener("DOMContentLoaded", function () {
+    var pass = lsGet("dash_pass", "tiktok2026");
+    var hint = document.getElementById("gate-hint");
+    if (hint) hint.textContent = (pass === "tiktok2026") ? "默认访问密码 tiktok2026，可在配置页修改" : "";
+    var btn = document.getElementById("gate-btn");
+    var inp = document.getElementById("gate-pass");
+    function tryGo() {
+      if (inp.value === pass) { window.__unlock(); }
+      else { var m = document.getElementById("gate-msg"); if (m) m.textContent = "密码错误，请重新输入"; }
+    }
+    if (btn) btn.addEventListener("click", tryGo);
+    if (inp) inp.addEventListener("keydown", function (e) { if (e.key === "Enter") tryGo(); });
+    var ok = false; try { ok = sessionStorage.getItem("dash_ok") === "1"; } catch (e) {}
+    if (ok) window.__unlock();
+  });
+})();
+</script>
+</head>
+<body>
+<div id="gate" style="position:fixed;inset:0;background:linear-gradient(135deg, #0f172a 0%, #1e293b 100%);z-index:9999;display:flex;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:16px;padding:36px 42px;text-align:center;box-shadow:0 20px 40px rgba(0,0,0,0.3);width:340px">
+    <div style="width:48px;height:48px;background:linear-gradient(135deg, #2563eb, #8b5cf6);border-radius:12px;margin:0 auto 14px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;font-weight:bold">TK</div>
+    <h2 style="font-size:18px;font-weight:700;color:#0f172a;margin-bottom:6px">TikTok 双店铺数据看板</h2>
+    <p style="font-size:13px;color:#64748b;margin-bottom:20px">请输入访问密码进入系统</p>
+    <input type="password" id="gate-pass" placeholder="请输入密码" style="width:100%;padding:10px 14px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none;text-align:center">
+    <br><button id="gate-btn" style="width:100%;margin-top:14px;padding:10px;background:#2563eb;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;transition:background 0.2s">进入看板</button>
+    <p id="gate-hint" style="font-size:12px;color:#64748b;margin-top:10px"></p>
+    <p id="gate-msg" style="font-size:12px;color:#dc2626;margin-top:6px;font-weight:500"></p>
+  </div>
+</div>
+
+<div class="layout">
+  <nav class="sidebar">
+    <div class="sidebar-brand">
+      <div class="logo-icon">TK</div>
+      <h1>TikTok 双店看板</h1>
+    </div>
+    <div class="item active" data-view="overview">📊 总览（两店合计）</div>
+    <div class="item" data-view="compare">⚖️ 店铺对比</div>
+    <div class="item" data-view="shop" data-shop="CHAIRUS">🏬 CHAIRUS 店铺</div>
+    <div class="item" data-view="shop" data-shop="PLUS">🏢 CHAIRUS PLUS</div>
+    <div style="flex:1"></div>
+    <div class="item" data-view="config">⚙️ 系统与预警配置</div>
+  </nav>
+
+  <main class="main">
+    <div class="global-filter-bar">
+      <div class="filter-label">
+        <span>📅 全局日期范围：</span>
+        <input type="date" id="f-from">
+        <span style="color:var(--text-muted)">至</span>
+        <input type="date" id="f-to">
+        <button id="f-apply" class="btn-primary">应用筛选</button>
+      </div>
+      <div style="font-size:12px;color:var(--text-sub)" id="global-sync-hint">⚡ 每日 ROI 数据自动持久备份</div>
+    </div>
+
+    <!-- 总览 -->
+    <section class="page active" id="page-overview">
+      <div class="topbar">
+        <h2>总览（两店合计）</h2>
+        <div class="meta" id="ov-meta"></div>
+      </div>
+      <div class="cards" id="kpi-ov"></div>
+      <div class="grid">
+        <!-- SKU 周销量 -->
+        <div class="chart-box full">
+          <div class="chart-header-row">
+            <h3>📈 各品类与产品周销量变化</h3>
+            <div class="chart-controls">
+              <span style="font-size:13px;color:var(--text-sub)">品类筛选：</span>
+              <select id="skuweek-ov-cat"></select>
+            </div>
+          </div>
+          <div class="chart-alert-slot" id="alert-slot-skuweek-ov"></div>
+          <div class="toggles" id="skuweek-ov-toggles"></div>
+          <div class="chart" id="ch-skuweek-ov"></div>
+        </div>
+
+        <!-- GMV 来源 (支持日/周切换) -->
+        <div class="chart-box full">
+          <div class="chart-header-row">
+            <h3>🌐 GMV 渠道来源分布</h3>
+            <div class="chart-controls">
+              <select id="source-ov-dim">
+                <option value="daily">日维度折线</option>
+                <option value="weekly">周维度柱状汇总</option>
+              </select>
+            </div>
+          </div>
+          <div class="toggles" id="source-ov-toggles"></div>
+          <div class="chart" id="ch-source-ov"></div>
+        </div>
+
+        <!-- 季度 / 年度 GMV 完成度 -->
+        <div class="chart-box">
+          <div class="chart-header-row">
+            <h3>🎯 季度 / 年度 GMV 完成度</h3>
+            <div class="chart-controls">
+              <select id="quarter-ov-sel">
+                <option value="Q3" selected>Q3 季度 (7~9月)</option>
+                <option value="Q1">Q1 季度 (1~3月)</option>
+                <option value="Q2">Q2 季度 (4~6月)</option>
+                <option value="Q4">Q4 季度 (10~12月)</option>
+                <option value="YEAR">🏆 全年年度总目标</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;background:#f8fafc;padding:6px 12px;border-radius:8px;border:1px solid var(--line);margin-bottom:8px;font-size:12.5px">
+            <span>目标设定 ($)：<input type="number" id="quarter-target-in" step="1000" style="width:110px;padding:3px 8px;border:1px solid var(--line);border-radius:6px;font-size:12.5px;font-weight:600;text-align:right"></span>
+            <span id="quarter-gap-hint" style="color:var(--text-sub);font-weight:600"></span>
+          </div>
+          <div class="chart small" id="ch-quarter-ov"></div>
+        </div>
+
+        <!-- 每周商家视频 -->
+        <div class="chart-box">
+          <div class="chart-header-row"><h3>🎬 每周商家视频归因 GMV</h3></div>
+          <div class="chart small" id="ch-video-ov"></div>
+        </div>
+
+        <!-- 每周 ROI 对比 (根据每日 ROI 自动汇总) -->
+        <div class="chart-box">
+          <div class="chart-header-row">
+            <h3>💎 每周 ROI 走势</h3>
+            <span style="font-size:11px;color:var(--text-sub);background:#f1f5f9;padding:2px 6px;border-radius:4px">由每日ROI自动聚合</span>
+          </div>
+          <div class="chart small" id="ch-roi-week-ov"></div>
+        </div>
+
+        <!-- 转化漏斗 -->
+        <div class="chart-box">
+          <div class="chart-header-row"><h3>🌪️ 转化漏斗（曝光→点击率→加购率→CTOR）</h3></div>
+          <div class="chart-alert-slot" id="alert-slot-funnel-ov"></div>
+          <div class="chart" id="ch-funnel-ov"></div>
+        </div>
+
+        <!-- GMV 与订单趋势 (多维度) -->
+        <div class="chart-box">
+          <div class="chart-header-row">
+            <h3>📉 GMV 与订单趋势</h3>
+            <div class="chart-controls">
+              <select id="trend-ov-dim">
+                <option value="daily">日维度总览</option>
+                <option value="weekly">周维度总览</option>
+                <option value="category">按品类看周GMV</option>
+                <option value="product">按具体产品看周GMV</option>
+              </select>
+              <select id="trend-ov-sub" style="display:none"></select>
+            </div>
+          </div>
+          <div class="chart-alert-slot" id="alert-slot-trend-ov"></div>
+          <div class="chart" id="ch-trend-ov"></div>
+        </div>
+
+        <!-- 月度 GMV 完成度 -->
+        <div class="chart-box full">
+          <div class="chart-header-row">
+            <h3>📊 月度 GMV 完成度（目标与两店实际GMV求和重叠柱形图）</h3>
+            <span style="font-size:12px;color:var(--text-sub)">数据来源：所有店铺每日GMV实际累加求和</span>
+          </div>
+          <div class="chart" id="ch-monthly-ov"></div>
+        </div>
+      </div>
+      <div id="insights-ov"></div>
+    </section>
+
+    <!-- 对比 -->
+    <section class="page" id="page-compare">
+      <div class="topbar">
+        <h2>店铺对比</h2>
+        <div class="meta" id="cmp-meta"></div>
+      </div>
+      <div class="tbl-wrap" style="margin-bottom:18px"><table id="tbl-compare"></table></div>
+      <div class="grid">
+        <div class="chart-box full">
+          <div class="chart-header-row"><h3>每周 GMV 对比（CHAIRUS vs PLUS）</h3></div>
+          <div class="chart" id="ch-cmp-week"></div>
+        </div>
+        <div class="chart-box">
+          <div class="chart-header-row"><h3>核心综合转化能力对比</h3></div>
+          <div class="chart" id="ch-cmp-kpi"></div>
+        </div>
+        <div class="chart-box">
+          <div class="chart-header-row"><h3>SKU 销量对比（两店 Top 10）</h3></div>
+          <div class="chart" id="ch-cmp-sku"></div>
+        </div>
+        <div class="chart-box">
+          <div class="chart-header-row"><h3>CHAIRUS 店铺 Top10 SKU</h3></div>
+          <div class="chart" id="ch-t10-chairus"></div>
+        </div>
+        <div class="chart-box">
+          <div class="chart-header-row"><h3>CHAIRUS PLUS 店铺 Top10 SKU</h3></div>
+          <div class="chart" id="ch-t10-plus"></div>
+        </div>
+        <div class="chart-box full">
+          <div class="chart-header-row"><h3>每日 GMV 走势对比</h3></div>
+          <div class="chart" id="ch-cmp-day"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 单店铺 -->
+    <section class="page" id="page-shop">
+      <div class="topbar">
+        <h2 id="shop-title">CHAIRUS 店铺</h2>
+        <div class="meta" id="shop-meta"></div>
+        <div class="shop-tabs">
+          <button class="stab active" data-spage="dash">仪表盘</button>
+          <button class="stab" data-spage="sales">销量榜</button>
+          <button class="stab" data-spage="daily">日报</button>
+          <button class="stab" data-spage="weekly">周报</button>
+          <button class="stab" data-spage="detail">商品详情</button>
+          <button class="stab" data-spage="risk">风险分析</button>
+        </div>
+      </div>
+
+      <div id="sp-dash">
+        <div class="cards" id="kpi-shop"></div>
+        <div class="grid">
+          <div class="chart-box full">
+            <div class="chart-header-row">
+              <h3>📈 各品类与产品周销量变化</h3>
+              <div class="chart-controls">
+                <span style="font-size:13px;color:var(--text-sub)">品类筛选：</span>
+                <select id="skuweek-shop-cat"></select>
+              </div>
+            </div>
+            <div class="chart-alert-slot" id="alert-slot-skuweek-shop"></div>
+            <div class="toggles" id="skuweek-shop-toggles"></div>
+            <div class="chart" id="ch-skuweek-shop"></div>
+          </div>
+
+          <div class="chart-box full">
+            <div class="chart-header-row">
+              <h3>🌐 GMV 渠道来源分布</h3>
+              <div class="chart-controls">
+                <select id="source-shop-dim">
+                  <option value="daily">日维度折线</option>
+                  <option value="weekly">周维度柱状汇总</option>
+                </select>
+              </div>
+            </div>
+            <div class="toggles" id="source-shop-toggles"></div>
+            <div class="chart" id="ch-source-shop"></div>
+          </div>
+
+          <div class="chart-box">
+            <div class="chart-header-row"><h3>🎬 每周商家视频归因 GMV</h3></div>
+            <div class="chart small" id="ch-video-shop"></div>
+          </div>
+
+          <div class="chart-box">
+            <div class="chart-header-row">
+              <h3>💎 每周 ROI 趋势</h3>
+              <span style="font-size:11px;color:var(--text-sub);background:#f1f5f9;padding:2px 6px;border-radius:4px">由每日ROI自动聚合</span>
+            </div>
+            <div class="chart small" id="ch-roi-week-shop"></div>
+          </div>
+
+          <div class="chart-box">
+            <div class="chart-header-row"><h3>🌪️ 转化漏斗（曝光→点击率→加购率→CTOR）</h3></div>
+            <div class="chart-alert-slot" id="alert-slot-funnel-shop"></div>
+            <div class="chart" id="ch-funnel-shop"></div>
+          </div>
+
+          <div class="chart-box">
+            <div class="chart-header-row"><h3>📈 每日 ROI 走势（你填的数据）</h3></div>
+            <div class="chart" id="ch-roi-shop"></div>
+          </div>
+
+          <div class="chart-box full">
+            <div class="chart-header-row">
+              <h3>📉 GMV 与订单趋势</h3>
+              <div class="chart-controls">
+                <select id="trend-shop-dim">
+                  <option value="daily">日维度总览</option>
+                  <option value="weekly">周维度总览</option>
+                  <option value="category">按品类看周GMV</option>
+                  <option value="product">按具体产品看周GMV</option>
+                </select>
+                <select id="trend-shop-sub" style="display:none"></select>
+              </div>
+            </div>
+            <div class="chart-alert-slot" id="alert-slot-trend-shop"></div>
+            <div class="chart" id="ch-trend-shop"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="sp-sales" style="display:none">
+        <div class="global-filter-bar" style="margin-bottom:14px">
+          <div class="filter-label">
+            <span>订单日期范围：</span>
+            <input type="date" id="s-from"><span style="color:var(--text-muted)">至</span><input type="date" id="s-to">
+            <button id="s-apply" class="btn-primary">应用筛选</button>
+          </div>
+        </div>
+        <div class="grid">
+          <div class="tbl-wrap"><h3 style="padding:12px 14px;font-size:14px;font-weight:700">按品名销量（SKU 提取规则）</h3><table id="tbl-sku-shop"></table></div>
+          <div class="tbl-wrap"><h3 style="padding:12px 14px;font-size:14px;font-weight:700">按品类销量（订单分类）</h3><table id="tbl-cat-shop"></table></div>
+          <div class="tbl-wrap full"><h3 style="padding:12px 14px;font-size:14px;font-weight:700">按订单渠道销量</h3><table id="tbl-channel-shop"></table></div>
+        </div>
+      </div>
+
+      <div id="sp-daily" style="display:none">
+        <div class="tbl-wrap"><table id="tbl-daily-shop"></table></div>
+        <div style="font-size:13px;color:var(--text-sub);margin-top:10px;background:#f1f5f9;padding:8px 12px;border-radius:8px">
+          💡 <b>提示：</b>在「ROI」列直接输入数字后会自动永久保存，周报及每周 ROI 图表会根据每日数据自动聚合更新！
+        </div>
+      </div>
+
+      <div id="sp-weekly" style="display:none">
+        <div class="tbl-wrap"><table id="tbl-weekly-shop"></table></div>
+        <div style="height:18px"></div>
+        <div class="chart-box">
+          <div class="chart-header-row"><h3>每周 SKU GMV（可勾选）</h3></div>
+          <div class="toggles" id="skuweekgmv-shop-toggles"></div>
+          <div class="chart" id="ch-skuweekgmv-shop"></div>
+        </div>
+      </div>
+
+      <div id="sp-detail" style="display:none">
+        <div class="global-filter-bar" style="margin-bottom:14px">
+          <div class="filter-label">
+            <span>选择日期：</span>
+            <select id="detail-date-shop"></select>
+          </div>
+        </div>
+        <div class="tbl-wrap wide"><table id="tbl-detail-shop"></table></div>
+      </div>
+
+      <div id="sp-risk" style="display:none">
+        <div id="insights-shop"></div>
+      </div>
+    </section>
+
+    <!-- 配置 -->
+    <section class="page" id="page-config">
+      <div class="topbar">
+        <h2>配置与数据持久化中心</h2>
+        <div class="meta">ROI 永久保存与导出备份、预警规则阈值配置</div>
+      </div>
+      <div class="grid">
+        <!-- ROI 数据备份与导出 -->
+        <div class="chart-box full" style="padding:20px">
+          <h3 style="margin-bottom:10px">🛡️ 每日 ROI 数据备份与安全同步</h3>
+          <p style="font-size:13.5px;color:var(--text-sub);line-height:1.7;margin-bottom:14px">
+            您填写的每日 ROI 数据已在本地浏览器安全持久化保存。即使看板升级、更新或重新编译，数据也不会丢失。您也可以随时在此导出备份文件或导入恢复：
+          </p>
+          <div style="display:flex;gap:12px;flex-wrap:wrap">
+            <button id="btn-export-roi" class="btn-primary" style="background:#059669">📥 导出并下载 ROI 备份文件 (JSON)</button>
+            <label class="btn-primary" style="background:#475569;display:inline-flex;align-items:center;cursor:pointer">
+              📤 从备份文件恢复 ROI <input type="file" id="file-import-roi" accept=".json" style="display:none">
+            </label>
+            <span id="roi-sync-status" style="align-self:center;font-size:13px;color:var(--success);font-weight:600"></span>
+          </div>
+        </div>
+
+        <div class="chart-box full" style="padding:20px">
+          <h3 style="margin-bottom:12px">🔑 访问密码设置</h3>
+          <label style="font-size:13.5px;display:flex;align-items:center">
+            <span>看板访问密码：</span>
+            <input type="text" id="cfg-pass" style="width:220px;margin-left:10px">
+          </label>
+        </div>
+
+        <div class="chart-box full" style="padding:20px">
+          <h3 style="margin-bottom:12px">⚠️ 业务预警阈值设置</h3>
+          <div id="config-fields" style="display:grid;grid-template-columns:1fr 1fr;gap:12px 28px;margin-top:10px"></div>
+          <div style="margin-top:18px;display:flex;gap:12px">
+            <button id="cfg-save" class="btn-primary">保存配置</button>
+            <button id="cfg-reset" style="padding:7px 18px;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:pointer;font-size:13px">恢复默认</button>
+            <span id="cfg-msg" style="font-size:13px;color:var(--success);align-self:center;font-weight:600"></span>
+          </div>
+        </div>
+
+        <div class="chart-box full" style="padding:20px">
+          <h3 style="margin-bottom:10px">📖 统计口径说明</h3>
+          <ul style="line-height:2.2;font-size:13.5px;padding-left:20px;color:var(--text-sub)">
+            <li><b>双店铺架构：</b>总览 = 两店每日与订单全量合计；对比 = 核心 17 项指标并排；CHAIRUS / CHAIRUS PLUS = 单店明细与独立仪表盘。</li>
+            <li><b>月度 GMV 完成度：</b>实际完成数据严格来源于所有店铺每日真实 GMV 之和，真实反映双店整体流水进度。</li>
+            <li><b>每周 ROI 自动统计：</b>根据技能包周定义规则（周一至周日完整 7 天），自动将该周内每天填写的 ROI 汇总求平均，无需重复填写。</li>
+            <li><b>风险预警就地吸附：</b>预警直接关联在 GMV 趋势、漏斗转化、周销量等图表旁，支持单个点击 ✕ 快速标记处理。</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

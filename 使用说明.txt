@@ -1,0 +1,24 @@
+# TikTok 双店铺数据看板 · 使用说明
+
+## 怎么打开
+双击本文件夹里的 index.html 即可（不需要联网、不用装软件）。改版后请 Ctrl+F5 强制刷新。
+
+## 看板结构（总→分）
+- 总览（两店合计）：所有指标都是 CHAIRUS + CHAIRUS PLUS 相加：KPI、SKU周销量、GMV来源、季度完成度、周商家视频、漏斗、趋势、月度完成度、智能分析
+- 店铺对比：17 项指标并排对比（含客户数、退款件数、SKU数、品类数）+ 每周GMV对比（含两店合计线）、每日GMV双线、各指标两店占比、SKU销量对比、两店 Top10 SKU
+- CHAIRUS 店铺 / CHAIRUS PLUS 店铺：各店独立看 仪表盘（含每日/每周 ROI 趋势）/销量榜/日报/周报（含 ROI 列）/商品详情/风险分析；折线图节点直接标注数字（金额与百分比两位小数）
+- 配置：统计口径说明 + 预警阈值（可改、保存、恢复）
+
+## 数据文件夹（两个店铺）
+- CHAIRUS：Downloads\易得客下载目录\Tiktok-Chairus-焦文浩（每日 X月X日.xlsx、订单、商品信息.xlsx）
+- CHAIRUS PLUS：Downloads\易得客下载目录\Tiktok-ChairusPlus-焦文浩（每日 X月X日.xlsx 或 product_list_YYYYMMDD.xlsx 均可识别、订单、商品信息.xlsx）
+- 月度GMV目标：Downloads\月度GMV完成度.xlsx（两店合计目标）\n- ROI：日报按天填、周报按周填，均按店铺分别保存，仪表盘自动同步
+
+## 以后更新
+把新文件放进对应店铺文件夹，跟我说一声，我重新计算并刷新看板。ROI 在日报里自己填（按店铺分别保存）。
+
+## 文件结构
+- index.html / app.js / style.css / echarts.min.js
+- data.js / detail-data.js（脚本生成的数据）
+- build_data.py（双店铺数据计算）、gen_insights.py（智能分析）
+- 双击改名-CHAIRUS_PLUS.bat / CHAIRUS_PLUS改名.ps1（把 PLUS 店铺 product_list 文件改成 X月X日.xlsx，可选执行）
