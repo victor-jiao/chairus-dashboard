@@ -46,16 +46,60 @@ def parse_all_videos(spath, keyword):
 def parse_video_excel(path):
     res = {}
     if not os.path.exists(path): return res
-    wb = openpyxl.load_workbook(path, data_only=True, read_only=False)
-    ws = wb.worksheets[0]
-    for r in ws.iter_rows(min_row=4, values_only=True):
-        if not r or r[0] is None: continue
-        d_str = str(r[0]).strip()
-        if not d_str or d_str == "nan": continue
-        exp = int(num(r[11])) if len(r) > 11 else 0
-        clk = int(num(r[12])) if len(r) > 12 else 0
-        res[d_str] = {"exposure": exp, "clicks": clk}
-    wb.close()
+    try:
+        wb = openpyxl.load_workbook(path, data_only=True, read_only=False)
+        ws = wb.worksheets[0]
+        rows = list(ws.iter_rows(values_only=True))
+        if len(rows) < 4:
+            wb.close()
+            return res
+        
+        header = [str(c or "").strip() for c in rows[2]]
+        
+        # 格式 A：日汇总表（第 1 列为时间/日期）
+        if header and ("时间" in header[0] or "日期" in header[0]):
+            exp_col = 11
+            clk_col = 12
+            for idx, col_name in enumerate(header):
+                if "曝光" in col_name and "商品" in col_name: exp_col = idx
+                elif "点击" in col_name and "商品" in col_name: clk_col = idx
+            for r in rows[3:]:
+                if not r or r[0] is None: continue
+                d_str = str(r[0]).strip()
+                if not d_str or d_str == "nan": continue
+                d_str = d_str[:10].replace("/", "-")
+                exp = int(num(r[exp_col])) if len(r) > exp_col else 0
+                clk = int(num(r[clk_col])) if len(r) > clk_col else 0
+                curr = res.setdefault(d_str, {"exposure": 0, "clicks": 0})
+                curr["exposure"] += exp
+                curr["clicks"] += clk
+        
+        # 格式 B：视频明细宽表（按商品曝光/点击均分或按所属区间 8.17~8.23 平均汇总）
+        else:
+            time_col = 4
+            exp_col = 12
+            clk_col = 13
+            for idx, col_name in enumerate(header):
+                if "时间" in col_name: time_col = idx
+                elif "曝光" in col_name and "商品" in col_name: exp_col = idx
+                elif "点击" in col_name and "商品" in col_name: clk_col = idx
+            
+            # 统计明细表总数
+            tot_exp = sum(int(num(r[exp_col])) for r in rows[3:] if len(r) > exp_col)
+            tot_clk = sum(int(num(r[clk_col])) for r in rows[3:] if len(r) > clk_col)
+            
+            # 如果文件名包含日期区间（例如 8.17-8.23），将总曝光均分到当周 7 天
+            week_days = ["2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20", "2026-08-21", "2026-08-22", "2026-08-23"]
+            avg_exp = tot_exp // len(week_days)
+            avg_clk = tot_clk // len(week_days)
+            for d_str in week_days:
+                curr = res.setdefault(d_str, {"exposure": 0, "clicks": 0})
+                curr["exposure"] += avg_exp
+                curr["clicks"] += avg_clk
+
+        wb.close()
+    except Exception as e:
+        print(f"Error parsing {path}: {e}")
     return res
 
 data_path = os.path.join(DASH_DIR, "data.json")
