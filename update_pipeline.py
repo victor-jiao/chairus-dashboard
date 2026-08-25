@@ -164,4 +164,45 @@ if os.path.exists(html_path):
         f.write(h)
     print(f"Cachebuster timestamp updated: v={v_ts}")
 
+
+# 5. 自动从《ROI记录表.xlsx》读取并固化 ROI 到 roi_data.js
+roi_excel_path = os.path.join(DASH_DIR, "ROI记录表.xlsx")
+# 如果用户放在了易得客目录或桌面，也自动查找
+possible_roi_paths = [
+    roi_excel_path,
+    r"C:\Users\Admin\Desktop\ROI记录表.xlsx",
+    r"C:\Users\Admin\Downloads\ROI记录表.xlsx",
+    r"C:\Users\Admin\Downloads\易得客下载目录\ROI记录表.xlsx"
+]
+
+roi_dict = {}
+for rp in possible_roi_paths:
+    if os.path.exists(rp):
+        try:
+            wb_roi = openpyxl.load_workbook(rp, data_only=True)
+            ws_roi = wb_roi.worksheets[0]
+            for r in ws_roi.iter_rows(min_row=2, values_only=True):
+                if not r or r[0] is None: continue
+                d_str = str(r[0]).strip()[:10].replace("/", "-")
+                if len(d_str) < 8 or "日期" in d_str: continue
+                # CHAIRUS ROI
+                if len(r) > 1 and r[1] is not None and str(r[1]).strip():
+                    try: roi_dict[f"CHAIRUS|{d_str}"] = float(str(r[1]).strip().replace("$",""))
+                    except: pass
+                # PLUS ROI
+                if len(r) > 2 and r[2] is not None and str(r[2]).strip():
+                    try: roi_dict[f"PLUS|{d_str}"] = float(str(r[2]).strip().replace("$",""))
+                    except: pass
+            wb_roi.close()
+            print(f"Loaded {len(roi_dict)} ROI records from {rp}")
+            break
+        except Exception as e:
+            print(f"Error reading ROI excel {rp}: {e}")
+
+# 写入 roi_data.js
+roi_js_path = os.path.join(DASH_DIR, "roi_data.js")
+with open(roi_js_path, "w", encoding="utf-8") as f:
+    f.write("window.DEFAULT_ROI = " + json.dumps(roi_dict, ensure_ascii=False, indent=2) + ";\n")
+print(f"Updated roi_data.js with {len(roi_dict)} items!")
+
 print("Pipeline finished successfully!")
