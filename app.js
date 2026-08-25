@@ -439,7 +439,7 @@
     var affilClk = ws.map(function (w) { return w.tot.affil_video_clicks || 0; });
 
     setOpt(chartId, {
-      tooltip: Object.assign({}, TOOLTIP, { trigger: "axis" }),
+      tooltip: { trigger: "axis" },
       legend: { data: ["自制视频曝光", "联盟视频曝光", "自制视频点击", "联盟视频点击"], top: 0, textStyle: { fontSize: 12 } },
       grid: { left: 65, right: 65, top: 40, bottom: 25 },
       xAxis: Object.assign({ type: "category", data: xData }, AXIS),
