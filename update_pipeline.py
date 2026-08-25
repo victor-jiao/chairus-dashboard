@@ -34,6 +34,14 @@ def num(v):
     try: return float(s)
     except Exception: return 0.0
 
+def parse_all_videos(spath, keyword):
+    merged = {}
+    for fn in os.listdir(spath):
+        if fn.endswith(".xlsx") and not fn.startswith("~$") and keyword in fn:
+            v_data = parse_video_excel(os.path.join(spath, fn))
+            merged.update(v_data)
+    return merged
+
 def parse_video_excel(path):
     res = {}
     if not os.path.exists(path): return res
@@ -59,8 +67,8 @@ shop_dirs = [
 ]
 
 for sname, spath in shop_dirs:
-    self_v = parse_video_excel(os.path.join(spath, "6.22-8.16自制视频.xlsx"))
-    affil_v = parse_video_excel(os.path.join(spath, "6.22-8.16联盟视频.xlsx"))
+    self_v = parse_all_videos(spath, "自制视频")
+    affil_v = parse_all_videos(spath, "联盟视频")
     shop_obj = data["shop"][sname]
     for d in shop_obj["days"]:
         ds = d["date"]

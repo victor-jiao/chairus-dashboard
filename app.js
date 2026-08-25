@@ -726,7 +726,7 @@
     var c = ctx(shop);
     var rows = filteredDays(c).slice().sort(function (a, b) { return a.date < b.date ? 1 : -1; });
     var tot = { gmv: 0, orders: 0, qty: 0, exposure: 0, clicks: 0, add_cart: 0, refund: 0, self_exp: 0, self_clk: 0, affil_exp: 0, affil_clk: 0 };
-    var html = "<tr><th>日期</th><th>GMV</th><th>订单数</th><th>成交件数</th><th>曝光</th><th>点击</th><th>点击率</th><th>自制曝光</th><th>自制点击</th><th>联盟曝光</th><th>联盟点击</th><th>加购</th><th>加购率</th><th>CTOR</th><th>ROI</th><th>退款金额</th><th>退款率</th></tr>";
+    var html = "<tr><th>日期</th><th>GMV</th><th>订单数</th><th>成交件数</th><th>曝光</th><th>点击</th><th>点击率</th><th>自制曝光</th><th>自制点击</th><th>联盟曝光</th><th>联盟点击</th><th>加购</th><th>加购率</th><th>CTOR</th><th>ROI</th></tr>";
     var roiSum = 0, roiN = 0;
     html += rows.map(function (d) {
       tot.gmv += d.gmv || 0;
@@ -766,8 +766,6 @@
         "<td>" + pct1(addr) + "</td>" +
         "<td>" + pct1(ctor) + "</td>" +
         "<td>" + roiInput + "</td>" +
-        "<td>" + money(d.refund) + "</td>" +
-        "<td>" + pct1(rr) + "</td>" +
         "</tr>";
     }).join("");
 
@@ -792,8 +790,6 @@
       '<td>' + pct1(addr) + '</td>' +
       '<td>' + pct1(ctor) + '</td>' +
       '<td>' + (roiN ? num2(roiSum / roiN) : "-") + '</td>' +
-      '<td>' + money(tot.refund) + '</td>' +
-      '<td>' + pct1(rr) + '</td>' +
       '</tr>';
     $("#tbl-daily-shop").innerHTML = html;
     $("#shop-meta").textContent = shop + " · " + rows.length + " 天（" + state.from + " ~ " + state.to + "）";
