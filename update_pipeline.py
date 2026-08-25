@@ -1,3 +1,4 @@
+import time
 # -*- coding: utf-8 -*-
 """一键更新数据管道：自动重命名 PLUS 文件 -> 解析所有 Excel -> 聚合双店铺/自制与联盟视频 -> 生成 data.js 与 detail-data.js"""
 import os, re, json, datetime
@@ -102,5 +103,21 @@ with open(data_path, "w", encoding="utf-8") as f:
     json.dump(data, f, ensure_ascii=False, indent=1)
 with open(os.path.join(DASH_DIR, "data.js"), "w", encoding="utf-8") as f:
     f.write("window.DASH_DATA = " + json.dumps(data, ensure_ascii=False) + ";")
+
+
+# 4. 更新 index.html 时间戳防缓存
+html_path = os.path.join(DASH_DIR, "index.html")
+if os.path.exists(html_path):
+    with open(html_path, "r", encoding="utf-8") as f:
+        h = f.read()
+    v_ts = str(int(time.time()))
+    h = re.sub(r'src="data\.js(\?v=\d+)?"', f'src="data.js?v={v_ts}"', h)
+    h = re.sub(r'src="roi_data\.js(\?v=\d+)?"', f'src="roi_data.js?v={v_ts}"', h)
+    h = re.sub(r'src="detail-data\.js(\?v=\d+)?"', f'src="detail-data.js?v={v_ts}"', h)
+    h = re.sub(r'src="app\.js(\?v=\d+)?"', f'src="app.js?v={v_ts}"', h)
+    h = re.sub(r'href="style\.css(\?v=\d+)?"', f'href="style.css?v={v_ts}"', h)
+    with open(html_path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(h)
+    print(f"Cachebuster timestamp updated: v={v_ts}")
 
 print("Pipeline finished successfully!")
