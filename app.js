@@ -32,7 +32,7 @@
   var T0 = ctx("TOTAL");
   var state = {
     from: (T0.days && T0.days.length) ? T0.days[0].date : "2026-07-01",
-    to: (T0.days && T0.days.length) ? T0.days[T0.days.length - 1].date : "2026-08-22"
+    to: (T0.days && T0.days.length) ? T0.days[T0.days.length - 1].date : "2026-08-23"
   };
   
   var salesState = {};
