@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>TikTok 双店铺数据看板</title>
-<link rel="stylesheet" href="style.css?v=1787644646">
+<link rel="stylesheet" href="style.css?v=1787881962">
 <script src="echarts.min.js"></script>
-<script src="data.js?v=1787644646"></script>
-<script src="roi_data.js?v=1787644646"></script>
-<script src="detail-data.js?v=1787644646"></script>
+<script src="data.js?v=1787881962"></script>
+<script src="roi_data.js?v=1787881962"></script>
+<script src="detail-data.js?v=1787881962"></script>
 <script>
 (function () {
   function lsGet(k, d) { try { var v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } }
@@ -104,19 +104,23 @@
           <div class="chart" id="ch-skuweek-ov"></div>
         </div>
 
-        <!-- GMV 来源 (支持日/周切换) -->
+        <!-- GMV 渠道来源分布 (圆形占比图: 达人/商家/商城页) -->
         <div class="chart-box full">
           <div class="chart-header-row">
-            <h3>🌐 GMV 渠道来源分布</h3>
-            <div class="chart-controls">
-              <select id="source-ov-dim">
-                <option value="daily">日维度折线</option>
-                <option value="weekly">周维度柱状汇总</option>
+            <h3>🍩 GMV 渠道来源占比（达人 / 商家 / 商城页）</h3>
+            <div class="chart-controls" style="display:flex;gap:8px;align-items:center">
+              <span style="font-size:12.5px;color:var(--text-sub)">统计维度：</span>
+              <select id="source-ov-dim" style="font-size:12.5px;padding:4px 8px;border:1px solid var(--line);border-radius:6px">
+                <option value="total" selected>全周期累计汇总</option>
+                <option value="daily">日维度 (按指定单日)</option>
+                <option value="weekly">周维度 (按指定单周)</option>
+                <option value="monthly">月维度 (按指定单月)</option>
               </select>
+              <select id="source-ov-sub" style="font-size:12.5px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;display:none"></select>
             </div>
           </div>
           <div class="toggles" id="source-ov-toggles"></div>
-          <div class="chart" id="ch-source-ov"></div>
+          <div class="chart" id="ch-source-ov" style="height:360px"></div>
         </div>
 
         <!-- 季度 / 年度 GMV 完成度 -->
@@ -260,16 +264,20 @@
 
           <div class="chart-box full">
             <div class="chart-header-row">
-              <h3>🌐 GMV 渠道来源分布</h3>
-              <div class="chart-controls">
-                <select id="source-shop-dim">
-                  <option value="daily">日维度折线</option>
-                  <option value="weekly">周维度柱状汇总</option>
+              <h3>🍩 GMV 渠道来源占比（达人 / 商家 / 商城页）</h3>
+              <div class="chart-controls" style="display:flex;gap:8px;align-items:center">
+                <span style="font-size:12.5px;color:var(--text-sub)">统计维度：</span>
+                <select id="source-shop-dim" style="font-size:12.5px;padding:4px 8px;border:1px solid var(--line);border-radius:6px">
+                  <option value="total" selected>全周期累计汇总</option>
+                  <option value="daily">日维度 (按指定单日)</option>
+                  <option value="weekly">周维度 (按指定单周)</option>
+                  <option value="monthly">月维度 (按指定单月)</option>
                 </select>
+                <select id="source-shop-sub" style="font-size:12.5px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;display:none"></select>
               </div>
             </div>
             <div class="toggles" id="source-shop-toggles"></div>
-            <div class="chart" id="ch-source-shop"></div>
+            <div class="chart" id="ch-source-shop" style="height:360px"></div>
           </div>
 
           <div class="chart-box">
@@ -416,6 +424,6 @@
 
   </main>
 </div>
-<script src="app.js?v=1787644646"></script>
+<script src="app.js?v=1787881962"></script>
 </body>
 </html>

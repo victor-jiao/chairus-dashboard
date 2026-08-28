@@ -289,61 +289,229 @@
 
   // GMV 渠道来源
   var sourceDimState = {};
-  function renderSource(c, chartId, togglesId, dimSelectId) {
+    // 渠道来源圆形占比图状态与逻辑
+  var sourceDimState = {};
+  var sourceSubState = {};
+
+  function renderSource(c, chartId, togglesId, dimSelectId, subSelectId) {
     var dimEl = $(dimSelectId);
+    var subEl = $(subSelectId);
+
     if (dimEl && !dimEl.dataset.inited) {
       dimEl.dataset.inited = "1";
       dimEl.addEventListener("change", function () {
         sourceDimState[dimSelectId] = this.value;
-        renderSource(c, chartId, togglesId, dimSelectId);
+        updateSourceSubOptions(c, dimSelectId, subSelectId);
+        renderSourceChart(c, chartId, togglesId, dimSelectId, subSelectId);
       });
     }
 
-    var dim = (dimEl && dimEl.value) || sourceDimState[dimSelectId] || "daily";
-    var keys = [["mall", "商城页"], ["video", "商家视频"], ["affil", "达人"], ["card", "商品卡"], ["live", "商家直播"]];
-    var all = keys.map(function (k) { return k[1]; });
+    if (subEl && !subEl.dataset.inited) {
+      subEl.dataset.inited = "1";
+      subEl.addEventListener("change", function () {
+        sourceSubState[subSelectId] = this.value;
+        renderSourceChart(c, chartId, togglesId, dimSelectId, subSelectId);
+      });
+    }
 
-    ensureToggles(togglesId, all, function () { renderSourceChart(c, chartId, togglesId, dim); });
-    renderSourceChart(c, chartId, togglesId, dim);
+    updateSourceSubOptions(c, dimSelectId, subSelectId);
+
+    var keys = ["达人视频", "商家视频", "商家直播", "商城页", "商品卡"];
+    ensureToggles(togglesId, keys, function () {
+      renderSourceChart(c, chartId, togglesId, dimSelectId, subSelectId);
+    });
+
+    renderSourceChart(c, chartId, togglesId, dimSelectId, subSelectId);
   }
 
-  function renderSourceChart(c, chartId, togglesId, dim) {
-    var keys = [["mall", "商城页"], ["video", "商家视频"], ["affil", "达人"], ["card", "商品卡"], ["live", "商家直播"]];
-    var sel = selMap[togglesId] || {};
-    var chosen = keys.filter(function (k) { return sel[k[1]]; });
+  function updateSourceSubOptions(c, dimSelectId, subSelectId) {
+    var dimEl = $(dimSelectId);
+    var subEl = $(subSelectId);
+    if (!dimEl || !subEl) return;
 
-    if (dim === "weekly") {
-      var wks = filteredWeeks(c);
-      var series = chosen.map(function (k) {
-        var arr = wks.map(function (w) {
-          var sumVal = 0;
-          (w.days || []).forEach(function (dStr) {
-            var foundD = (c.days || []).find(function (x) { return x.date === dStr; });
-            if (foundD && foundD.sources && foundD.sources[k[0]]) sumVal += foundD.sources[k[0]];
-          });
-          return Math.round(sumVal);
-        });
-        return { name: k[1], type: "bar", stack: "total", label: lbl(true, false, false), labelLayout: { hideOverlap: true }, data: arr };
+    var dim = dimEl.value || "total";
+    if (dim === "total") {
+      subEl.style.display = "none";
+      return;
+    }
+
+    subEl.style.display = "";
+    var currentVal = subEl.value || sourceSubState[subSelectId];
+    var options = [];
+
+    if (dim === "daily") {
+      var ds = (c.days || []).slice().reverse();
+      options = ds.map(function (d) { return { val: d.date, text: d.label + " (" + d.date + ")" }; });
+    } else if (dim === "weekly") {
+      var ws = (c.weeks || []).slice().reverse();
+      options = ws.map(function (w) { return { val: w.key, text: "第 " + w.key + " 周 (" + w.monday.slice(5) + "~" + w.sunday.slice(5) + ")" }; });
+    } else if (dim === "monthly") {
+      var mSet = {};
+      (c.days || []).forEach(function (d) {
+        var m = d.date.slice(0, 7);
+        mSet[m] = true;
       });
-      setOpt(chartId, {
-        color: COLORS.slice(0, 5), tooltip: { trigger: "axis" }, legend: { bottom: 0 },
-        grid: { left: 60, right: 16, top: 30, bottom: 46 },
-        xAxis: Object.assign({ type: "category", name: "周", data: wks.map(function (w) { return w.key; }) }, AXIS),
-        yAxis: Object.assign({ type: "value", name: "周 GMV ($)" }, AXIS),
-        series: series
-      });
-    } else {
-      var ds = filteredDays(c);
-      setOpt(chartId, {
-        color: COLORS.slice(0, 5), tooltip: { trigger: "axis" }, legend: { bottom: 0 },
-        grid: { left: 60, right: 16, top: 30, bottom: 46 },
-        xAxis: Object.assign({ type: "category", data: ds.map(function (d) { return d.label; }) }, AXIS),
-        yAxis: Object.assign({ type: "value", name: "GMV ($)" }, AXIS),
-        series: chosen.map(function (k) {
-          return { name: k[1], type: "line", smooth: true, symbolSize: 5, label: lbl(true, false, false), labelLayout: { hideOverlap: true }, data: ds.map(function (d) { return Math.round(d.sources[k[0]] || 0); }) };
-        })
+      options = Object.keys(mSet).sort().reverse().map(function (m) {
+        return { val: m, text: m + " 月全月" };
       });
     }
+
+    subEl.innerHTML = options.map(function (opt) {
+      var sel = (opt.val === currentVal) ? " selected" : "";
+      return '<option value="' + esc(opt.val) + '"' + sel + '>' + esc(opt.text) + '</option>';
+    }).join("");
+
+    if (!options.some(function (opt) { return opt.val === subEl.value; }) && options.length) {
+      subEl.value = options[0].val;
+    }
+    sourceSubState[subSelectId] = subEl.value;
+  }
+
+  function renderSourceChart(c, chartId, togglesId, dimSelectId, subSelectId) {
+    var dimEl = $(dimSelectId);
+    var subEl = $(subSelectId);
+    var dim = (dimEl && dimEl.value) || "total";
+    var subVal = (subEl && subEl.value) || (sourceSubState[subSelectId]);
+
+    var raw = { affil: 0.0, video: 0.0, live: 0.0, mall: 0.0, card: 0.0 };
+
+    if (dim === "total") {
+      var ds = filteredDays(c);
+      ds.forEach(function (d) {
+        var s = d.sources || {};
+        raw.affil += s.affil || 0;
+        raw.video += s.video || 0;
+        raw.live += s.live || 0;
+        raw.mall += s.mall || 0;
+        raw.card += s.card || 0;
+      });
+    } else if (dim === "daily") {
+      var targetD = (c.days || []).find(function (d) { return d.date === subVal; }) || c.days[c.days.length - 1];
+      if (targetD) {
+        var s = targetD.sources || {};
+        raw.affil = s.affil || 0;
+        raw.video = s.video || 0;
+        raw.live = s.live || 0;
+        raw.mall = s.mall || 0;
+        raw.card = s.card || 0;
+      }
+    } else if (dim === "weekly") {
+      var targetW = (c.weeks || []).find(function (w) { return w.key === subVal; });
+      if (targetW) {
+        (targetW.days || []).forEach(function (dStr) {
+          var foundD = (c.days || []).find(function (d) { return d.date === dStr; });
+          if (foundD) {
+            var s = foundD.sources || {};
+            raw.affil += s.affil || 0;
+            raw.video += s.video || 0;
+            raw.live += s.live || 0;
+            raw.mall += s.mall || 0;
+            raw.card += s.card || 0;
+          }
+        });
+      }
+    } else if (dim === "monthly") {
+      (c.days || []).forEach(function (d) {
+        if (d.date.startsWith(subVal)) {
+          var s = d.sources || {};
+          raw.affil += s.affil || 0;
+          raw.video += s.video || 0;
+          raw.live += s.live || 0;
+          raw.mall += s.mall || 0;
+          raw.card += s.card || 0;
+        }
+      });
+    }
+
+    var sel = selMap[togglesId] || {};
+
+    var outerItems = [
+      { name: "达人视频", value: Math.round(raw.affil * 100) / 100, group: "达人", color: "#8b5cf6" },
+      { name: "商家视频", value: Math.round(raw.video * 100) / 100, group: "商家", color: "#2563eb" },
+      { name: "商家直播", value: Math.round(raw.live * 100) / 100, group: "商家", color: "#38bdf8" },
+      { name: "商城页", value: Math.round(raw.mall * 100) / 100, group: "商城页", color: "#10b981" },
+      { name: "商品卡", value: Math.round(raw.card * 100) / 100, group: "商城页", color: "#34d399" }
+    ].filter(function (it) {
+      return (sel[it.name] !== false) && it.value > 0;
+    });
+
+    var innerMap = { "达人": { value: 0, color: "#7c3aed" }, "商家": { value: 0, color: "#1d4ed8" }, "商城页": { value: 0, color: "#059669" } };
+    outerItems.forEach(function (it) {
+      if (innerMap[it.group]) innerMap[it.group].value += it.value;
+    });
+
+    var innerData = Object.keys(innerMap).map(function (k) {
+      return { name: k, value: Math.round(innerMap[k].value * 100) / 100, itemStyle: { color: innerMap[k].color } };
+    }).filter(function (it) { return it.value > 0; });
+
+    var totalGmv = innerData.reduce(function (s, it) { return s + it.value; }, 0);
+
+    var outerData = outerItems.map(function (it) {
+      return { name: it.name, value: it.value, itemStyle: { color: it.color } };
+    });
+
+    var timeLabel = "全周期累计";
+    if (dim === "daily") timeLabel = subVal + " 单日";
+    else if (dim === "weekly") timeLabel = "第 " + subVal + " 周";
+    else if (dim === "monthly") timeLabel = subVal + " 月度";
+
+    setOpt(chartId, {
+      title: {
+        text: money(totalGmv),
+        subtext: timeLabel + "\nGMV 汇总",
+        left: "38%", top: "40%",
+        textAlign: "center",
+        textStyle: { fontSize: 16, fontWeight: "bold", color: "#0f172a" },
+        subtextStyle: { fontSize: 11, color: "#64748b", lineHeight: 14 }
+      },
+      tooltip: {
+        trigger: "item",
+        formatter: function (p) {
+          var pct = totalGmv ? (p.value / totalGmv * 100).toFixed(2) : 0;
+          return "<b>" + esc(p.name) + "</b><br/>GMV: $" + Number(p.value).toLocaleString("en-US", { minimumFractionDigits: 2 }) + " (" + pct + "%)";
+        }
+      },
+      legend: {
+        orient: "vertical", right: "2%", top: "middle",
+        textStyle: { fontSize: 11.5, color: "#475569" },
+        formatter: function (name) {
+          var found = outerItems.find(function (x) { return x.name === name; }) || innerData.find(function (x) { return x.name === name; });
+          if (!found) return name;
+          var pct = totalGmv ? (found.value / totalGmv * 100).toFixed(1) : 0;
+          return name + "  $" + Math.round(found.value).toLocaleString() + " (" + pct + "%)";
+        }
+      },
+      series: [
+        {
+          name: "主渠道大类",
+          type: "pie",
+          selectedMode: "single",
+          radius: [0, "38%"],
+          center: ["38%", "50%"],
+          label: {
+            position: "inner", fontSize: 11, color: "#fff", fontWeight: "bold",
+            formatter: function (p) {
+              var pct = totalGmv ? (p.value / totalGmv * 100).toFixed(1) : 0;
+              return (p.value / totalGmv > 0.08) ? (p.name + "\n" + pct + "%") : "";
+            }
+          },
+          labelLine: { show: false },
+          data: innerData
+        },
+        {
+          name: "渠道细分来源",
+          type: "pie",
+          radius: ["48%", "68%"],
+          center: ["38%", "50%"],
+          label: {
+            formatter: "{b}: {d}%",
+            fontSize: 10.5,
+            color: "#334155"
+          },
+          data: outerData
+        }
+      ]
+    });
   }
 
   // 季度 / 年度 GMV 仪表盘
@@ -1306,7 +1474,7 @@
     renderKPI(T, "#kpi-ov", "#ov-meta", "ov");
     renderInlineAlerts(T, "ov");
     renderSkuWeek(T, "#ch-skuweek-ov", "skuweek-ov-toggles", "#skuweek-ov-cat");
-    renderSource(T, "#ch-source-ov", "source-ov-toggles", "#source-ov-dim");
+    renderSource(T, "#ch-source-ov", "source-ov-toggles", "#source-ov-dim", "#source-ov-sub");
     renderQuarter("#ch-quarter-ov");
     renderVideo(T, "#ch-video-ov");
     renderRoiWeekOv("#ch-roi-week-ov");
@@ -1326,7 +1494,7 @@
       renderKPI(c, "#kpi-shop", "#shop-meta", "shop");
       renderInlineAlerts(c, "shop");
       renderSkuWeek(c, "#ch-skuweek-shop", "skuweek-shop-toggles", "#skuweek-shop-cat");
-      renderSource(c, "#ch-source-shop", "source-shop-toggles", "#source-shop-dim");
+      renderSource(c, "#ch-source-shop", "source-shop-toggles", "#source-shop-dim", "#source-shop-sub");
       renderVideo(c, "#ch-video-shop");
       renderRoiWeek(activeShop, "#ch-roi-week-shop");
       renderFunnel(c, "#ch-funnel-shop");
