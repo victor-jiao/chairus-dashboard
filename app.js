@@ -1260,132 +1260,205 @@
   }
 
   function renderCompare() {
-    var c1 = ctx("CHAIRUS"), c2 = ctx("PLUS");
-    var a1 = aggDays(c1), a2 = aggDays(c2);
-    var totGmv = a1.gmv + a2.gmv;
-    var totOrd = a1.orders + a2.orders;
-    var totRef = a1.refund + a2.refund;
-    var ctr1 = a1.expo ? a1.clicks / a1.expo * 100 : 0, ctr2 = a2.expo ? a2.clicks / a2.expo * 100 : 0;
-    var add1 = a1.clicks ? a1.ac / a1.clicks * 100 : 0, add2 = a2.clicks ? a2.ac / a2.clicks * 100 : 0;
-    var ctor1 = a1.clicks ? a1.orders / a1.clicks * 100 : 0, ctor2 = a2.clicks ? a2.orders / a2.clicks * 100 : 0;
-    var ref1 = a1.gmv ? a1.refund / a1.gmv * 100 : 0, ref2 = a2.gmv ? a2.refund / a2.gmv * 100 : 0;
-    var aov1 = a1.orders ? a1.gmv / a1.orders : 0, aov2 = a2.orders ? a2.gmv / a2.orders : 0;
-    var davg1 = a1.days ? a1.gmv / a1.days : 0, davg2 = a2.days ? a2.gmv / a2.days : 0;
+    var shopList = SHOPS;
+    var colors = { "CHAIRUS": "#2563eb", "PLUS": "#ea580c", "HOME": "#10b981" };
+    var shopAggs = {};
+    var totGmv = 0, totOrd = 0, totRef = 0, totExpo = 0, totClicks = 0, totAc = 0, totVideo = 0, totMall = 0, totAffil = 0, totCard = 0;
+
+    shopList.forEach(function(s) {
+      var c = ctx(s);
+      var a = aggDays(c);
+      shopAggs[s] = a;
+      totGmv += a.gmv;
+      totOrd += a.orders;
+      totRef += a.refund;
+      totExpo += a.expo;
+      totClicks += a.clicks;
+      totAc += a.ac;
+      totVideo += a.video;
+      totMall += a.mall;
+      totAffil += a.affil;
+      totCard += a.card;
+    });
 
     var metrics = [
-      { name: "区间 GMV", v1: money(a1.gmv), v2: money(a2.gmv), tot: money(totGmv), winner: a1.gmv >= a2.gmv ? "CHAIRUS" : "PLUS" },
-      { name: "GMV 贡献占比", v1: pct1(totGmv ? a1.gmv / totGmv * 100 : 0), v2: pct1(totGmv ? a2.gmv / totGmv * 100 : 0), tot: "100.0%", winner: a1.gmv >= a2.gmv ? "CHAIRUS" : "PLUS" },
-      { name: "日均 GMV", v1: money(davg1), v2: money(davg2), tot: money(a1.days ? totGmv / a1.days : 0), winner: davg1 >= davg2 ? "CHAIRUS" : "PLUS" },
-      { name: "订单数", v1: int(a1.orders), v2: int(a2.orders), tot: int(totOrd), winner: a1.orders >= a2.orders ? "CHAIRUS" : "PLUS" },
-      { name: "订单占比", v1: pct1(totOrd ? a1.orders / totOrd * 100 : 0), v2: pct1(totOrd ? a2.orders / totOrd * 100 : 0), tot: "100.0%", winner: a1.orders >= a2.orders ? "CHAIRUS" : "PLUS" },
-      { name: "客单价 (AOV)", v1: money(aov1), v2: money(aov2), tot: money(totOrd ? totGmv / totOrd : 0), winner: aov1 >= aov2 ? "CHAIRUS" : "PLUS" },
-      { name: "曝光量", v1: int(a1.expo), v2: int(a2.expo), tot: int(a1.expo + a2.expo), winner: a1.expo >= a2.expo ? "CHAIRUS" : "PLUS" },
-      { name: "点击量", v1: int(a1.clicks), v2: int(a2.clicks), tot: int(a1.clicks + a2.clicks), winner: a1.clicks >= a2.clicks ? "CHAIRUS" : "PLUS" },
-      { name: "点击率 (CTR)", v1: pct1(ctr1), v2: pct1(ctr2), tot: pct1((a1.expo + a2.expo) ? (a1.clicks + a2.clicks) / (a1.expo + a2.expo) * 100 : 0), winner: ctr1 >= ctr2 ? "CHAIRUS" : "PLUS" },
-      { name: "加购量", v1: int(a1.ac), v2: int(a2.ac), tot: int(a1.ac + a2.ac), winner: a1.ac >= a2.ac ? "CHAIRUS" : "PLUS" },
-      { name: "加购率", v1: pct1(add1), v2: pct1(add2), tot: pct1((a1.clicks + a2.clicks) ? (a1.ac + a2.ac) / (a1.clicks + a2.clicks) * 100 : 0), winner: add1 >= add2 ? "CHAIRUS" : "PLUS" },
-      { name: "CTOR 转化率", v1: pct1(ctor1), v2: pct1(ctor2), tot: pct1((a1.clicks + a2.clicks) ? totOrd / (a1.clicks + a2.clicks) * 100 : 0), winner: ctor1 >= ctor2 ? "CHAIRUS" : "PLUS" },
-      { name: "商家视频 GMV", v1: money(a1.video), v2: money(a2.video), tot: money(a1.video + a2.video), winner: a1.video >= a2.video ? "CHAIRUS" : "PLUS" },
-      { name: "商城页 GMV", v1: money(a1.mall), v2: money(a2.mall), tot: money(a1.mall + a2.mall), winner: a1.mall >= a2.mall ? "CHAIRUS" : "PLUS" },
-      { name: "达人推广 GMV", v1: money(a1.affil), v2: money(a2.affil), tot: money(a1.affil + a2.affil), winner: a1.affil >= a2.affil ? "CHAIRUS" : "PLUS" },
+      { name: "区间 GMV", fn: function(a) { return money(a.gmv); }, tot: money(totGmv), raw: function(a){return a.gmv;} },
+      { name: "GMV 贡献占比", fn: function(a) { return pct1(totGmv ? a.gmv / totGmv * 100 : 0); }, tot: "100.0%", raw: function(a){return a.gmv;} },
+      { name: "日均 GMV", fn: function(a) { return money(a.days ? a.gmv / a.days : 0); }, tot: money(totGmv / (shopAggs["CHAIRUS"] ? shopAggs["CHAIRUS"].days || 91 : 91)), raw: function(a){return a.days ? a.gmv / a.days : 0;} },
+      { name: "订单数", fn: function(a) { return int(a.orders); }, tot: int(totOrd), raw: function(a){return a.orders;} },
+      { name: "订单占比", fn: function(a) { return pct1(totOrd ? a.orders / totOrd * 100 : 0); }, tot: "100.0%", raw: function(a){return a.orders;} },
+      { name: "客单价 (AOV)", fn: function(a) { return money(a.orders ? a.gmv / a.orders : 0); }, tot: money(totOrd ? totGmv / totOrd : 0), raw: function(a){return a.orders ? a.gmv / a.orders : 0;} },
+      { name: "曝光量", fn: function(a) { return int(a.expo); }, tot: int(totExpo), raw: function(a){return a.expo;} },
+      { name: "点击量", fn: function(a) { return int(a.clicks); }, tot: int(totClicks), raw: function(a){return a.clicks;} },
+      { name: "点击率 (CTR)", fn: function(a) { return pct1(a.expo ? a.clicks / a.expo * 100 : 0); }, tot: pct1(totExpo ? totClicks / totExpo * 100 : 0), raw: function(a){return a.expo ? a.clicks / a.expo : 0;} },
+      { name: "加购量", fn: function(a) { return int(a.ac); }, tot: int(totAc), raw: function(a){return a.ac;} },
+      { name: "加购率", fn: function(a) { return pct1(a.clicks ? a.ac / a.clicks * 100 : 0); }, tot: pct1(totClicks ? totAc / totClicks * 100 : 0), raw: function(a){return a.clicks ? a.ac / a.clicks : 0;} },
+      { name: "CTOR 转化率", fn: function(a) { return pct1(a.clicks ? a.orders / a.clicks * 100 : 0); }, tot: pct1(totClicks ? totOrd / totClicks * 100 : 0), raw: function(a){return a.clicks ? a.orders / a.clicks : 0;} },
+      { name: "商家视频 GMV", fn: function(a) { return money(a.video); }, tot: money(totVideo), raw: function(a){return a.video;} },
+      { name: "商城页 GMV", fn: function(a) { return money(a.mall); }, tot: money(totMall), raw: function(a){return a.mall;} },
+      { name: "达人推广 GMV", fn: function(a) { return money(a.affil); }, tot: money(totAffil), raw: function(a){return a.affil;} },
     ];
 
-    var html = '<thead><tr><th style="width:20%">对比指标</th><th style="width:22%;color:#2563eb">CHAIRUS</th><th style="width:22%;color:#ea580c">CHAIRUS PLUS</th><th style="width:20%;background:#f8fafc">两店合计 / 平均</th><th style="width:16%">优势方</th></tr></thead><tbody>';
-    html += metrics.map(function (m) {
-      return '<tr><td style="font-weight:700">' + esc(m.name) + '</td><td>' + m.v1 + '</td><td>' + m.v2 + '</td><td style="background:#fafafa;font-weight:700">' + m.tot + '</td><td style="color:' + (m.winner.indexOf("CHAIRUS") >= 0 ? "#2563eb" : "#ea580c") + ';font-weight:700">' + m.winner + '</td></tr>';
+    var theadCols = shopList.map(function(s) {
+      var color = colors[s] || "#475569";
+      return '<th style="color:' + color + '">' + (s === "HOME" ? "Chairus HOME" : (s === "PLUS" ? "CHAIRUS PLUS" : s)) + '</th>';
+    }).join("");
+
+    var html = '<thead><tr><th style="width:18%">对比指标</th>' + theadCols + '<th style="width:16%;background:#f8fafc">全店合计 / 平均</th><th style="width:14%">领先方</th></tr></thead><tbody>';
+
+    html += metrics.map(function(m) {
+      var bestShop = "";
+      var bestVal = -Infinity;
+      var rowCols = shopList.map(function(s) {
+        var a = shopAggs[s];
+        var val = m.raw(a);
+        if (val > bestVal) {
+          bestVal = val;
+          bestShop = s;
+        }
+        return '<td>' + m.fn(a) + '</td>';
+      }).join("");
+      var bestColor = colors[bestShop] || "#0f172a";
+      var bestName = bestShop === "HOME" ? "HOME" : (bestShop === "PLUS" ? "PLUS" : "CHAIRUS");
+      return '<tr><td style="font-weight:700">' + esc(m.name) + '</td>' + rowCols + '<td style="background:#fafafa;font-weight:700">' + m.tot + '</td><td style="color:' + bestColor + ';font-weight:700">' + bestName + '</td></tr>';
     }).join("");
     html += '</tbody>';
     $("#tbl-compare").innerHTML = html;
-    $("#cmp-meta").textContent = "两店对比 · " + state.from + " ~ " + state.to;
+    $("#cmp-meta").textContent = "多店对比 · " + state.from + " ~ " + state.to;
 
-    var w1 = filteredWeeks(c1), w2 = filteredWeeks(c2);
-    var allWeekKeys = Array.from(new Set(w1.map(function (w) { return w.key; }).concat(w2.map(function (w) { return w.key; })))).sort();
-    var wmap1 = {}, wmap2 = {};
-    w1.forEach(function (w) { wmap1[w.key] = w.tot.gmv; });
-    w2.forEach(function (w) { wmap2[w.key] = w.tot.gmv; });
+    // 1. 每周 GMV 对比柱状图
+    var allWeekKeys = [];
+    var weekDataMap = {};
+    shopList.forEach(function(s) {
+      var wList = filteredWeeks(ctx(s));
+      weekDataMap[s] = {};
+      wList.forEach(function(w) {
+        weekDataMap[s][w.key] = w.tot.gmv;
+        if (allWeekKeys.indexOf(w.key) < 0) allWeekKeys.push(w.key);
+      });
+    });
+    allWeekKeys.sort();
+
     setOpt("#ch-cmp-week", {
       tooltip: { trigger: "axis" }, legend: { bottom: 0 },
       grid: { left: 60, right: 16, top: 30, bottom: 46 },
       xAxis: Object.assign({ type: "category", data: allWeekKeys }, AXIS),
       yAxis: Object.assign({ type: "value", name: "GMV ($)" }, AXIS),
-      series: [
-        { name: "CHAIRUS", type: "bar", itemStyle: { color: "#2563eb" }, label: lbl(true, false, false), labelLayout: { hideOverlap: true }, data: allWeekKeys.map(function (k) { return Math.round(wmap1[k] || 0); }) },
-        { name: "CHAIRUS PLUS", type: "bar", itemStyle: { color: "#ea580c" }, label: lbl(true, false, false), labelLayout: { hideOverlap: true }, data: allWeekKeys.map(function (k) { return Math.round(wmap2[k] || 0); }) }
-      ]
+      series: shopList.map(function(s) {
+        return {
+          name: s === "HOME" ? "Chairus HOME" : (s === "PLUS" ? "CHAIRUS PLUS" : "CHAIRUS"),
+          type: "bar",
+          itemStyle: { color: colors[s] || "#64748b" },
+          label: lbl(true, false, false),
+          labelLayout: { hideOverlap: true },
+          data: allWeekKeys.map(function(k) { return Math.round(weekDataMap[s][k] || 0); })
+        };
+      })
     });
 
+    // 2. 雷达图
+    var radarIndicators = [
+      { name: "CTR 点击率", max: 5 },
+      { name: "加购率", max: 10 },
+      { name: "CTOR 转化率", max: 2 },
+      { name: "客单价/10", max: 30 },
+      { name: "日均GMV/100", max: 40 }
+    ];
     setOpt("#ch-cmp-kpi", {
       tooltip: { trigger: "axis" }, legend: { bottom: 0 },
-      radar: {
-        indicator: [
-          { name: "CTR 点击率", max: Math.max(ctr1, ctr2, 5) * 1.2 },
-          { name: "加购率", max: Math.max(add1, add2, 8) * 1.2 },
-          { name: "CTOR 转化率", max: Math.max(ctor1, ctor2, 1) * 1.2 },
-          { name: "客单价/10", max: Math.max(aov1, aov2, 200) / 10 * 1.2 },
-          { name: "日均GMV/100", max: Math.max(davg1, davg2, 2000) / 100 * 1.2 }
-        ],
-        radius: "65%"
-      },
+      radar: { indicator: radarIndicators, radius: "65%" },
       series: [{
         type: "radar",
-        data: [
-          { value: [num2(ctr1), num2(add1), num2(ctor1), num2(aov1 / 10), num2(davg1 / 100)], name: "CHAIRUS", itemStyle: { color: "#2563eb" }, areaStyle: { color: "rgba(37,99,235,0.2)" } },
-          { value: [num2(ctr2), num2(add2), num2(ctor2), num2(aov2 / 10), num2(davg2 / 100)], name: "CHAIRUS PLUS", itemStyle: { color: "#ea580c" }, areaStyle: { color: "rgba(234,88,12,0.2)" } }
-        ]
+        data: shopList.map(function(s) {
+          var a = shopAggs[s];
+          var ctr = a.expo ? a.clicks / a.expo * 100 : 0;
+          var add = a.clicks ? a.ac / a.clicks * 100 : 0;
+          var ctor = a.clicks ? a.orders / a.clicks * 100 : 0;
+          var aov = a.orders ? a.gmv / a.orders : 0;
+          var davg = a.days ? a.gmv / a.days : 0;
+          var c = colors[s] || "#64748b";
+          return {
+            value: [num2(ctr), num2(add), num2(ctor), num2(aov / 10), num2(davg / 100)],
+            name: s === "HOME" ? "Chairus HOME" : (s === "PLUS" ? "CHAIRUS PLUS" : "CHAIRUS"),
+            itemStyle: { color: c }
+          };
+        })
       }]
     });
 
-    var r1 = c1.sales_rank_sku || [], r2 = c2.sales_rank_sku || [];
+    // 3. SKU 对比柱状图
     var skuSet = new Set();
-    r1.slice(0, 8).forEach(function (r) { skuSet.add(r.name); });
-    r2.slice(0, 8).forEach(function (r) { skuSet.add(r.name); });
+    var skuMaps = {};
+    shopList.forEach(function(s) {
+      var r = ctx(s).sales_rank_sku || [];
+      skuMaps[s] = {};
+      r.slice(0, 6).forEach(function(item) {
+        skuSet.add(item.name);
+      });
+      r.forEach(function(item) {
+        skuMaps[s][item.name] = item.qty;
+      });
+    });
     var cmpSkus = Array.from(skuSet);
-    var skumap1 = {}, skumap2 = {};
-    r1.forEach(function (r) { skumap1[r.name] = r.qty; });
-    r2.forEach(function (r) { skumap2[r.name] = r.qty; });
     setOpt("#ch-cmp-sku", {
       tooltip: { trigger: "axis" }, legend: { bottom: 0 },
       grid: { left: 80, right: 20, top: 20, bottom: 46 },
-      xAxis: Object.assign({ type: "value", name: "销量（件）" }, AXIS),
+      xAxis: Object.assign({ type: "value", name: "销量" }, AXIS),
       yAxis: Object.assign({ type: "category", data: cmpSkus }, AXIS),
-      series: [
-        { name: "CHAIRUS", type: "bar", itemStyle: { color: "#2563eb" }, label: lbl(false, false, false), labelLayout: { hideOverlap: true }, data: cmpSkus.map(function (k) { return skumap1[k] || 0; }) },
-        { name: "CHAIRUS PLUS", type: "bar", itemStyle: { color: "#ea580c" }, label: lbl(false, false, false), labelLayout: { hideOverlap: true }, data: cmpSkus.map(function (k) { return skumap2[k] || 0; }) }
-      ]
+      series: shopList.map(function(s) {
+        return {
+          name: s === "HOME" ? "Chairus HOME" : (s === "PLUS" ? "CHAIRUS PLUS" : "CHAIRUS"),
+          type: "bar",
+          itemStyle: { color: colors[s] || "#64748b" },
+          label: lbl(false, false, false),
+          labelLayout: { hideOverlap: true },
+          data: cmpSkus.map(function(k) { return skuMaps[s][k] || 0; })
+        };
+      })
     });
 
-    var t10_1 = r1.slice(0, 10).reverse();
-    setOpt("#ch-t10-chairus", {
-      tooltip: { trigger: "axis" },
-      grid: { left: 85, right: 30, top: 20, bottom: 25 },
-      xAxis: Object.assign({ type: "value" }, AXIS),
-      yAxis: Object.assign({ type: "category", data: t10_1.map(function (x) { return x.name; }) }, AXIS),
-      series: [{ name: "销量", type: "bar", itemStyle: { color: "#2563eb" }, label: lbl(false, false, false), data: t10_1.map(function (x) { return x.qty; }) }]
-    });
+    // 4. 各店 Top10 SKU
+    function renderTop10(shopName, elemId, color) {
+      var r = (ctx(shopName).sales_rank_sku || []).slice(0, 10).reverse();
+      setOpt(elemId, {
+        tooltip: { trigger: "axis" },
+        grid: { left: 85, right: 30, top: 20, bottom: 25 },
+        xAxis: Object.assign({ type: "value" }, AXIS),
+        yAxis: Object.assign({ type: "category", data: r.map(function (x) { return x.name; }) }, AXIS),
+        series: [{ name: "销量", type: "bar", itemStyle: { color: color }, label: lbl(false, false, false), data: r.map(function (x) { return x.qty; }) }]
+      });
+    }
+    renderTop10("CHAIRUS", "#ch-t10-chairus", "#2563eb");
+    renderTop10("PLUS", "#ch-t10-plus", "#ea580c");
+    if ($("#ch-t10-home")) renderTop10("HOME", "#ch-t10-home", "#10b981");
 
-    var t10_2 = r2.slice(0, 10).reverse();
-    setOpt("#ch-t10-plus", {
-      tooltip: { trigger: "axis" },
-      grid: { left: 85, right: 30, top: 20, bottom: 25 },
-      xAxis: Object.assign({ type: "value" }, AXIS),
-      yAxis: Object.assign({ type: "category", data: t10_2.map(function (x) { return x.name; }) }, AXIS),
-      series: [{ name: "销量", type: "bar", itemStyle: { color: "#ea580c" }, label: lbl(false, false, false), data: t10_2.map(function (x) { return x.qty; }) }]
+    // 5. 每日 GMV 对比折线图
+    var allDayKeys = [];
+    var dayDataMap = {};
+    shopList.forEach(function(s) {
+      var ds = filteredDays(ctx(s));
+      dayDataMap[s] = {};
+      ds.forEach(function(d) {
+        dayDataMap[s][d.date] = d.gmv;
+        if (allDayKeys.indexOf(d.date) < 0) allDayKeys.push(d.date);
+      });
     });
+    allDayKeys.sort();
 
-    var ds1 = filteredDays(c1), ds2 = filteredDays(c2);
-    var dkeys = Array.from(new Set(ds1.map(function (d) { return d.date; }).concat(ds2.map(function (d) { return d.date; })))).sort();
-    var dmap1 = {}, dmap2 = {};
-    ds1.forEach(function (d) { dmap1[d.date] = d.gmv; });
-    ds2.forEach(function (d) { dmap2[d.date] = d.gmv; });
     setOpt("#ch-cmp-day", {
       tooltip: { trigger: "axis" }, legend: { bottom: 0 },
       grid: { left: 60, right: 16, top: 30, bottom: 46 },
-      xAxis: Object.assign({ type: "category", data: dkeys.map(function (k) { return k.slice(5); }) }, AXIS),
+      xAxis: Object.assign({ type: "category", data: allDayKeys.map(function(k) { return k.slice(5); }) }, AXIS),
       yAxis: Object.assign({ type: "value", name: "GMV ($)" }, AXIS),
-      series: [
-        { name: "CHAIRUS", type: "line", smooth: true, itemStyle: { color: "#2563eb" }, label: lbl(true, false, false), labelLayout: { hideOverlap: true }, data: dkeys.map(function (k) { return Math.round(dmap1[k] || 0); }) },
-        { name: "CHAIRUS PLUS", type: "line", smooth: true, itemStyle: { color: "#ea580c" }, label: lbl(true, false, false), labelLayout: { hideOverlap: true }, data: dkeys.map(function (k) { return Math.round(dmap2[k] || 0); }) }
-      ]
+      series: shopList.map(function(s) {
+        return {
+          name: s === "HOME" ? "Chairus HOME" : (s === "PLUS" ? "CHAIRUS PLUS" : "CHAIRUS"),
+          type: "line", smooth: true,
+          itemStyle: { color: colors[s] || "#64748b" },
+          label: lbl(true, false, false), labelLayout: { hideOverlap: true },
+          data: allDayKeys.map(function(k) { return Math.round(dayDataMap[s][k] || 0); })
+        };
+      })
     });
   }
 

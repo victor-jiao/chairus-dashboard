@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TikTok 双店铺数据看板</title>
-<link rel="stylesheet" href="style.css?v=1787881962">
+<title>TikTok 多店铺数据看板</title>
+<link rel="stylesheet" href="style.css?v=1788190326">
 <script src="echarts.min.js"></script>
-<script src="data.js?v=1787881962"></script>
-<script src="roi_data.js?v=1787881962"></script>
-<script src="detail-data.js?v=1787881962"></script>
+<script src="data.js?v=1788190326"></script>
+<script src="roi_data.js?v=1788190326"></script>
+<script src="detail-data.js?v=1788190326"></script>
 <script>
 (function () {
   function lsGet(k, d) { try { var v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } }
@@ -47,7 +47,7 @@
 <div id="gate" style="position:fixed;inset:0;background:linear-gradient(135deg, #0f172a 0%, #1e293b 100%);z-index:9999;display:flex;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:16px;padding:36px 42px;text-align:center;box-shadow:0 20px 40px rgba(0,0,0,0.3);width:340px">
     <div style="width:48px;height:48px;background:linear-gradient(135deg, #2563eb, #8b5cf6);border-radius:12px;margin:0 auto 14px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;font-weight:bold">TK</div>
-    <h2 style="font-size:18px;font-weight:700;color:#0f172a;margin-bottom:6px">TikTok 双店铺数据看板</h2>
+    <h2 style="font-size:18px;font-weight:700;color:#0f172a;margin-bottom:6px">TikTok 多店铺数据看板</h2>
     <p style="font-size:13px;color:#64748b;margin-bottom:20px">请输入访问密码进入系统</p>
     <input type="password" id="gate-pass" placeholder="请输入密码" style="width:100%;padding:10px 14px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none;text-align:center">
     <br><button id="gate-btn" style="width:100%;margin-top:14px;padding:10px;background:#2563eb;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;transition:background 0.2s">进入看板</button>
@@ -66,6 +66,7 @@
     <div class="item" data-view="compare">⚖️ 店铺对比</div>
     <div class="item" data-view="shop" data-shop="CHAIRUS">🏬 CHAIRUS 店铺</div>
     <div class="item" data-view="shop" data-shop="PLUS">🏢 CHAIRUS PLUS</div>
+      <div class="item" data-view="shop" data-shop="HOME">🏠 Chairus HOME</div>
     <div style="flex:1"></div>
     <div class="item" data-view="config">⚙️ 系统与预警配置</div>
   </nav>
@@ -424,6 +425,6 @@
 
   </main>
 </div>
-<script src="app.js?v=1787881962"></script>
+<script src="app.js?v=1788190326"></script>
 </body>
 </html>

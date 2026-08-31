@@ -109,6 +109,7 @@ with open(data_path, "r", encoding="utf-8") as f:
 shop_dirs = [
     ("CHAIRUS", r"C:\Users\Admin\Downloads\易得客下载目录\Tiktok-Chairus-焦文浩"),
     ("PLUS", r"C:\Users\Admin\Downloads\易得客下载目录\Tiktok-ChairusPlus-焦文浩"),
+    ("HOME", r"C:\Users\Admin\Downloads\易得客下载目录\ChairusHome子账号-焦文浩"),
 ]
 
 for sname, spath in shop_dirs:
@@ -132,16 +133,16 @@ for sname, spath in shop_dirs:
 total_obj = data["total"]
 for d in total_obj["days"]:
     ds = d["date"]
-    d["self_video_exposure"] = sum(data["shop"][s]["days"][i].get("self_video_exposure", 0) for s in ["CHAIRUS", "PLUS"] for i, sd in enumerate(data["shop"][s]["days"]) if sd["date"] == ds)
-    d["self_video_clicks"] = sum(data["shop"][s]["days"][i].get("self_video_clicks", 0) for s in ["CHAIRUS", "PLUS"] for i, sd in enumerate(data["shop"][s]["days"]) if sd["date"] == ds)
-    d["affil_video_exposure"] = sum(data["shop"][s]["days"][i].get("affil_video_exposure", 0) for s in ["CHAIRUS", "PLUS"] for i, sd in enumerate(data["shop"][s]["days"]) if sd["date"] == ds)
-    d["affil_video_clicks"] = sum(data["shop"][s]["days"][i].get("affil_video_clicks", 0) for s in ["CHAIRUS", "PLUS"] for i, sd in enumerate(data["shop"][s]["days"]) if sd["date"] == ds)
+    d["self_video_exposure"] = sum(data["shop"][s]["days"][i].get("self_video_exposure", 0) for s in data["shops"] for i, sd in enumerate(data["shop"][s]["days"]) if sd["date"] == ds)
+    d["self_video_clicks"] = sum(data["shop"][s]["days"][i].get("self_video_clicks", 0) for s in data["shops"] for i, sd in enumerate(data["shop"][s]["days"]) if sd["date"] == ds)
+    d["affil_video_exposure"] = sum(data["shop"][s]["days"][i].get("affil_video_exposure", 0) for s in data["shops"] for i, sd in enumerate(data["shop"][s]["days"]) if sd["date"] == ds)
+    d["affil_video_clicks"] = sum(data["shop"][s]["days"][i].get("affil_video_clicks", 0) for s in data["shops"] for i, sd in enumerate(data["shop"][s]["days"]) if sd["date"] == ds)
 
 for w in total_obj["weeks"]:
-    w["tot"]["self_video_exposure"] = sum(data["shop"][s]["weeks"][i]["tot"].get("self_video_exposure", 0) for s in ["CHAIRUS", "PLUS"] for i, sw in enumerate(data["shop"][s]["weeks"]) if sw["key"] == w["key"])
-    w["tot"]["self_video_clicks"] = sum(data["shop"][s]["weeks"][i]["tot"].get("self_video_clicks", 0) for s in ["CHAIRUS", "PLUS"] for i, sw in enumerate(data["shop"][s]["weeks"]) if sw["key"] == w["key"])
-    w["tot"]["affil_video_exposure"] = sum(data["shop"][s]["weeks"][i]["tot"].get("affil_video_exposure", 0) for s in ["CHAIRUS", "PLUS"] for i, sw in enumerate(data["shop"][s]["weeks"]) if sw["key"] == w["key"])
-    w["tot"]["affil_video_clicks"] = sum(data["shop"][s]["weeks"][i]["tot"].get("affil_video_clicks", 0) for s in ["CHAIRUS", "PLUS"] for i, sw in enumerate(data["shop"][s]["weeks"]) if sw["key"] == w["key"])
+    w["tot"]["self_video_exposure"] = sum(data["shop"][s]["weeks"][i]["tot"].get("self_video_exposure", 0) for s in data["shops"] for i, sw in enumerate(data["shop"][s]["weeks"]) if sw["key"] == w["key"])
+    w["tot"]["self_video_clicks"] = sum(data["shop"][s]["weeks"][i]["tot"].get("self_video_clicks", 0) for s in data["shops"] for i, sw in enumerate(data["shop"][s]["weeks"]) if sw["key"] == w["key"])
+    w["tot"]["affil_video_exposure"] = sum(data["shop"][s]["weeks"][i]["tot"].get("affil_video_exposure", 0) for s in data["shops"] for i, sw in enumerate(data["shop"][s]["weeks"]) if sw["key"] == w["key"])
+    w["tot"]["affil_video_clicks"] = sum(data["shop"][s]["weeks"][i]["tot"].get("affil_video_clicks", 0) for s in data["shops"] for i, sw in enumerate(data["shop"][s]["weeks"]) if sw["key"] == w["key"])
 
 with open(data_path, "w", encoding="utf-8") as f:
     json.dump(data, f, ensure_ascii=False, indent=1)
@@ -192,6 +193,10 @@ for rp in possible_roi_paths:
                 # PLUS ROI
                 if len(r) > 2 and r[2] is not None and str(r[2]).strip():
                     try: roi_dict[f"PLUS|{d_str}"] = float(str(r[2]).strip().replace("$",""))
+                    except: pass
+                # HOME ROI
+                if len(r) > 3 and r[3] is not None and str(r[3]).strip():
+                    try: roi_dict[f"HOME|{d_str}"] = float(str(r[3]).strip().replace("$",""))
                     except: pass
             wb_roi.close()
             print(f"Loaded {len(roi_dict)} ROI records from {rp}")

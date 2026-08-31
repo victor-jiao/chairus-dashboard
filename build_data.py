@@ -7,8 +7,10 @@ OUT_DIR = os.path.dirname(os.path.abspath(__file__))
 SHOP_DIRS = [
     ("CHAIRUS", r"C:\Users\Admin\Downloads\易得客下载目录\Tiktok-Chairus-焦文浩"),
     ("PLUS", r"C:\Users\Admin\Downloads\易得客下载目录\Tiktok-ChairusPlus-焦文浩"),
+    ("HOME", r"C:\Users\Admin\Downloads\易得客下载目录\ChairusHome子账号-焦文浩"),
 ]
 GMV_PATH = r"C:\Users\Admin\Downloads\月度GMV完成度.xlsx"
+DEFAULT_GMV_PATH = r"D:\codex-钉钉\月度GMV完成度_提取.json"
 
 def num(v):
     if v is None: return 0.0
@@ -550,15 +552,40 @@ def merge_total(shops):
 
 def load_monthly_targets(path):
     monthly = []
-    if os.path.exists(path):
-        wb = openpyxl.load_workbook(path, data_only=True, read_only=False)
-        ws = wb.worksheets[0]
-        for r in ws.iter_rows(min_row=2, values_only=True):
-            if r[0] is None: continue
-            actual, target = num(r[1]), num(r[2])
-            monthly.append({"month": str(r[0]).strip(), "actual": actual, "target": target,
-                            "completion": round(actual / target * 100, 1) if target else 0})
-        wb.close()
+    possible_paths = [
+        path,
+        r"C:\Users\Admin\Desktop\月度GMV完成度.xlsx",
+        r"D:\codex-钉钉\月度GMV完成度.xlsx",
+        r"C:\Users\Admin\Downloads\易得客下载目录\月度GMV完成度.xlsx"
+    ]
+    target_file = None
+    for p in possible_paths:
+        if os.path.exists(p):
+            target_file = p
+            break
+            
+    if target_file:
+        try:
+            wb = openpyxl.load_workbook(target_file, data_only=True, read_only=False)
+            ws = wb.worksheets[0]
+            for r in ws.iter_rows(min_row=2, values_only=True):
+                if r[0] is None: continue
+                actual, target = num(r[1]), num(r[2])
+                monthly.append({"month": str(r[0]).strip(), "actual": actual, "target": target,
+                                "completion": round(actual / target * 100, 1) if target else 0})
+            wb.close()
+        except Exception as e:
+            print("Error loading GMV targets excel:", e)
+            
+    if not monthly:
+        # Fallback preset targets
+        targets = [
+            ("1月", 0, 50000), ("2月", 0, 50000), ("3月", 0, 60000),
+            ("4月", 0, 80000), ("5月", 0, 100000), ("6月", 0, 150000),
+            ("7月", 0, 180000), ("8月", 0, 200000), ("9月", 0, 220000),
+            ("10月", 0, 250000), ("11月", 0, 300000), ("12月", 0, 350000)
+        ]
+        monthly = [{"month": m, "actual": a, "target": t, "completion": 0} for m, a, t in targets]
     return monthly
 
 def compute_monthly_and_quarters(total, base_monthly):
