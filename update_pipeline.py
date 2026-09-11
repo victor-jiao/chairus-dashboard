@@ -89,13 +89,29 @@ def parse_video_excel(path):
             tot_clk = sum(int(num(r[clk_col])) for r in rows[3:] if len(r) > clk_col)
             
             # 如果文件名包含日期区间（例如 8.17-8.23），将总曝光均分到当周 7 天
-            week_days = ["2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20", "2026-08-21", "2026-08-22", "2026-08-23"]
-            avg_exp = tot_exp // len(week_days)
-            avg_clk = tot_clk // len(week_days)
-            for d_str in week_days:
-                curr = res.setdefault(d_str, {"exposure": 0, "clicks": 0})
-                curr["exposure"] += avg_exp
-                curr["clicks"] += avg_clk
+            fn = os.path.basename(path)
+            m = re.search(r"(\d+)\.(\d+)-(\d+)\.(\d+)", fn)
+            if m:
+                m1, d1, m2, d2 = map(int, m.groups())
+                dt1 = datetime.date(2026, m1, d1)
+                dt2 = datetime.date(2026, m2, d2)
+                day_count = (dt2 - dt1).days + 1
+                if day_count > 0:
+                    avg_exp = tot_exp // day_count
+                    avg_clk = tot_clk // day_count
+                    for offset in range(day_count):
+                        cur_d = (dt1 + datetime.timedelta(days=offset)).strftime("%Y-%m-%d")
+                        curr = res.setdefault(cur_d, {"exposure": 0, "clicks": 0})
+                        curr["exposure"] += avg_exp
+                        curr["clicks"] += avg_clk
+            else:
+                week_days = ["2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20", "2026-08-21", "2026-08-22", "2026-08-23"]
+                avg_exp = tot_exp // len(week_days)
+                avg_clk = tot_clk // len(week_days)
+                for d_str in week_days:
+                    curr = res.setdefault(d_str, {"exposure": 0, "clicks": 0})
+                    curr["exposure"] += avg_exp
+                    curr["clicks"] += avg_clk
 
         wb.close()
     except Exception as e:

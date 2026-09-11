@@ -61,6 +61,21 @@ def week_of_date(d):
     wn = (mon - fmon).days // 7 + 1
     return owner, wn, mon, sunday
 
+def find_latest_product_info(shop_path):
+    candidates = []
+    for f in os.listdir(shop_path):
+        if not f.endswith(".xlsx") or f.startswith("~$"): continue
+        if "商品信息" in f:
+            full = os.path.join(shop_path, f)
+            m = re.search(r"(\d+)\.(\d+)", f)
+            score = int(m.group(1)) * 100 + int(m.group(2)) if m else 0
+            mtime = os.path.getmtime(full)
+            candidates.append((score, mtime, full))
+    if not candidates:
+        return os.path.join(shop_path, "商品信息.xlsx")
+    candidates.sort(key=lambda x: (x[0], x[1]), reverse=True)
+    return candidates[0][2]
+
 def load_product_map(path):
     pm = {}
     if not os.path.exists(path): return pm
@@ -168,7 +183,7 @@ def load_orders(path):
     return out
 
 def process_shop(name, path):
-    pm = load_product_map(os.path.join(path, "商品信息.xlsx"))
+    pm = load_product_map(find_latest_product_info(path))
     daily_files = []
     for fn in os.listdir(path):
         if not fn.endswith(".xlsx") or fn.startswith("~$") or "视频" in fn: continue
