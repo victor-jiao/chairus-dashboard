@@ -7,18 +7,24 @@ import subprocess
 PLUS_DIR = r"C:\Users\Admin\Downloads\易得客下载目录\Tiktok-ChairusPlus-焦文浩"
 DASH_DIR = r"D:\codex-钉钉\dashboard"
 
-# 1. 自动检查并重命名 PLUS 目录下的 product_list 文件
-if os.path.exists(PLUS_DIR):
-    for f in os.listdir(PLUS_DIR):
-        m = re.match(r"^product_list_(\d{4})(\d{2})(\d{2})\.xlsx$", f)
-        if m:
-            y, mo, d = m.groups()
-            new_name = f"{int(mo)}月{int(d)}日.xlsx"
-            try:
-                os.rename(os.path.join(PLUS_DIR, f), os.path.join(PLUS_DIR, new_name))
-                print(f"Auto renamed: {f} -> {new_name}")
-            except Exception as e:
-                print(f"Rename error: {e}")
+# 1. 自动检查并重命名所有店铺目录下的 product_list 文件
+RENAME_DIRS = [
+    r"C:\Users\Admin\Downloads\易得客下载目录\Tiktok-Chairus-焦文浩",
+    r"C:\Users\Admin\Downloads\易得客下载目录\Tiktok-ChairusPlus-焦文浩",
+    r"C:\Users\Admin\Downloads\易得客下载目录\ChairusHome子账号-焦文浩",
+]
+for sdir in RENAME_DIRS:
+    if os.path.exists(sdir):
+        for f in os.listdir(sdir):
+            m = re.match(r"^product_list_(\d{4})(\d{2})(\d{2})\.xlsx$", f)
+            if m:
+                y, mo, d = m.groups()
+                new_name = f"{int(mo)}月{int(d)}日.xlsx"
+                try:
+                    os.rename(os.path.join(sdir, f), os.path.join(sdir, new_name))
+                    print(f"Auto renamed [{os.path.basename(sdir)}]: {f} -> {new_name}")
+                except Exception as e:
+                    print(f"Rename error: {e}")
 
 # 2. 运行 build_data.py 与 gen_insights.py
 python_exe = r"C:\Users\Admin\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe"
