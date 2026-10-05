@@ -116,9 +116,14 @@ DAILY_COLS = {
 def build_detail_schema(ws):
     r3 = [c.value for c in ws[3]]
     r4 = [c.value for c in ws[4]]
+    gmv_idx = 4
+    for idx in range(min(len(r4), 10)):
+        if str(r4[idx] or "").strip() == "GMV":
+            gmv_idx = idx
+            break
     keep = []
     for i in range(len(r4)):
-        if i in (0, 1, 2, 3): continue
+        if i < gmv_idx: continue
         h3 = str(r3[i]).strip() if r3[i] is not None else ""
         h4 = str(r4[i]).strip() if r4[i] is not None else ""
         merged = (h3 + h4) if h3 else h4
@@ -201,7 +206,11 @@ def process_shop(name, path):
         schema = build_detail_schema(ws)
         headers = ["品类"] + [h for _, h in schema]
         rows = []
-        tot = {k: 0.0 for k in DAILY_COLS}
+        r4 = [str(c.value or "").strip() for c in ws[4][:10]]
+        gmv_idx = r4.index("GMV") if "GMV" in r4 else 4
+        offset = gmv_idx - 4
+        daily_cols = {k: v + offset for k, v in DAILY_COLS.items()}
+        tot = {k: 0.0 for k in daily_cols}
         cat_agg = {}
         for r in raw:
             if len(r) < 30: continue
@@ -210,7 +219,7 @@ def process_shop(name, path):
             info = pm.get(pid)
             code = sku_extract(info["sku"]) if info and info["sku"] else ""
             cat = info["category"] if info else "未分类"
-            g = {k: num(r[i]) if i < len(r) else 0.0 for k, i in DAILY_COLS.items()}
+            g = {k: num(r[i]) if i < len(r) else 0.0 for k, i in daily_cols.items()}
             for k in tot: tot[k] += g[k]
             ca = cat_agg.setdefault(cat, {k: 0.0 for k in ("gmv","orders","qty","exposure","clicks","add_cart","refund")})
             for k in ca: ca[k] += g[k]

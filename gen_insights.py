@@ -21,7 +21,10 @@ def build_insights(ctx, monthly_para=True):
         cur = next((m for m in reversed(monthly) if m["actual"] > 0), None)
         if cur and cur["target"]:
             gap = cur["target"] - cur["actual"]
-            end = datetime.date(2026, int(cur["month"].replace("月","")), 31)
+            mo = int(cur["month"].replace("月",""))
+            import calendar
+            last_d = calendar.monthrange(2026, mo)[1]
+            end = datetime.date(2026, mo, last_d)
             remain = max(0, (end - datetime.date.fromisoformat(days[-1]["date"])).days)
             need = gap / remain if remain else gap
             lines.append(f"月度目标：{cur['month']}实际 ${cur['actual']:,.0f}，目标 ${cur['target']:,.0f}，完成度 {cur['completion']:.1f}%。缺口 ${gap:,.0f}，剩余{remain}天需日均 ${need:,.0f} 才能达标（当前日均 ${gmv/len(days):,.0f}）。")
