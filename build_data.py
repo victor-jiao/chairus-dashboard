@@ -4,13 +4,32 @@ import os, re, json, datetime
 import openpyxl
 
 OUT_DIR = os.path.dirname(os.path.abspath(__file__))
-SHOP_DIRS = [
+
+# ---- 路径统一从 配置/paths.json 读取（找不到就用内置默认值，保证单文件也能跑）----
+def _load_cfg():
+    p = os.path.abspath(os.path.join(OUT_DIR, "..", "配置", "paths.json"))
+    try:
+        with open(p, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+_CFG = _load_cfg()
+
+_DEFAULT_SHOPS = [
     ("CHAIRUS", r"C:\Users\Admin\Downloads\易得客下载目录\Tiktok-Chairus-焦文浩"),
     ("PLUS", r"C:\Users\Admin\Downloads\易得客下载目录\Tiktok-ChairusPlus-焦文浩"),
     ("HOME", r"C:\Users\Admin\Downloads\易得客下载目录\ChairusHome子账号-焦文浩"),
 ]
-GMV_PATH = r"C:\Users\Admin\Downloads\月度GMV完成度.xlsx"
-DEFAULT_GMV_PATH = r"D:\codex-钉钉\月度GMV完成度_提取.json"
+SHOP_DIRS = list(_CFG.get("店铺", {}).items()) or _DEFAULT_SHOPS
+
+_GMV_CANDS = _CFG.get("月度目标候选路径") or [
+    r"C:\Users\Admin\Downloads\月度GMV完成度.xlsx",
+    r"C:\Users\Admin\Desktop\月度GMV完成度.xlsx",
+    r"D:\codex-钉钉\月度GMV完成度.xlsx",
+]
+GMV_PATH = next((p for p in _GMV_CANDS if os.path.exists(p)), _GMV_CANDS[0])
+DEFAULT_GMV_PATH = os.path.abspath(os.path.join(OUT_DIR, "..", "月度GMV完成度_提取.json"))
 
 def num(v):
     if v is None: return 0.0

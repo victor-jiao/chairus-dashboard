@@ -1,14 +1,14 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>TikTok 多店铺数据看板</title>
-<link rel="stylesheet" href="style.css?v=1795661450">
+<link rel="stylesheet" href="style.css?v=1795662415">
 <script src="echarts.min.js"></script>
-<script src="data.js?v=1795661450"></script>
-<script src="roi_data.js?v=1795661450"></script>
-<script src="detail-data.js?v=1795661450"></script>
+<script src="data.js?v=1795662415"></script>
+<script src="roi_data.js?v=1795662415"></script>
+<script src="detail-data.js?v=1795662415"></script>
 <script>
 (function () {
   function lsGet(k, d) { try { var v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } }
@@ -418,6 +418,8 @@
             <li><b>月度 GMV 完成度：</b>实际完成数据严格来源于所有店铺每日真实 GMV 之和，真实反映双店整体流水进度。</li>
             <li><b>每周 ROI 自动统计：</b>根据技能包周定义规则（周一至周日完整 7 天），自动将该周内每天填写的 ROI 汇总求平均，无需重复填写。</li>
             <li><b>风险预警就地吸附：</b>预警直接关联在 GMV 趋势、漏斗转化、周销量等图表旁，支持单个点击 ✕ 快速标记处理。</li>
+            <li><b>GMV 渠道口径（10 月起变化）：</b>易得客 2026 年 10 月起启用新导出模板，取消了「商家商品卡」维度，改为并入「商城页和搜索」；且新模板下「直播 + 视频 + 达人 + 商城页和搜索」四项相加精确等于 GMV。故 10 月以后「商品卡」为 0（仅在 CHAIRUS PLUS 仍保留该列），「商城页」对 CHAIRUS 含搜索流量。历史 6–9 月数据保持原口径不变。</li>
+            <li><b>数据更新方式：</b>由「一键更新」脚本按 体检 → 改名 → 备份 → 构建 → 校验 → 部署 的顺序执行，每一步都有日志，任一步失败即中止并给出回滚命令。</li>
           </ul>
         </div>
       </div>
@@ -425,6 +427,6 @@
 
   </main>
 </div>
-<script src="app.js?v=1795661450"></script>
+<script src="app.js?v=1795662415"></script>
 </body>
 </html>

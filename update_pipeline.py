@@ -8,8 +8,23 @@ import shutil
 PLUS_DIR = r"C:\Users\Admin\Downloads\易得客下载目录\Tiktok-ChairusPlus-焦文浩"
 DASH_DIR = r"D:\codex-钉钉\dashboard"
 
+# ---- 路径统一从 配置/paths.json 读取（找不到就用默认值）----
+def _load_cfg():
+    p = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "配置", "paths.json"))
+    try:
+        with open(p, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+_CFG = _load_cfg()
+DASH_DIR = _CFG.get("看板目录", DASH_DIR)
+_SHOP_MAP = _CFG.get("店铺", {})
+_ENABLED = _CFG.get("改名启用店铺", ["CHAIRUS", "PLUS"])
+PYTHON_EXE = _CFG.get("python") or r"C:\Users\Admin\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe"
+
 # 1. 自动检查并重命名所有店铺目录下的 product_list 文件
-RENAME_DIRS = [
+RENAME_DIRS = [_SHOP_MAP[s] for s in _ENABLED if s in _SHOP_MAP] or [
     r"C:\Users\Admin\Downloads\易得客下载目录\Tiktok-Chairus-焦文浩",
     r"C:\Users\Admin\Downloads\易得客下载目录\Tiktok-ChairusPlus-焦文浩",
     r"C:\Users\Admin\Downloads\易得客下载目录\ChairusHome子账号-焦文浩",
@@ -28,7 +43,7 @@ for sdir in RENAME_DIRS:
                     print(f"Rename error: {e}")
 
 # 2. 运行 build_data.py 与 gen_insights.py
-python_exe = r"C:\Users\Admin\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe"
+python_exe = PYTHON_EXE
 subprocess.run([python_exe, os.path.join(DASH_DIR, "build_data.py")], check=True)
 subprocess.run([python_exe, os.path.join(DASH_DIR, "gen_insights.py")], check=True)
 
@@ -207,12 +222,12 @@ def load_existing_roi(path):
         return {}
 
 
-possible_roi_paths = [
+possible_roi_paths = list(_CFG.get("ROI候选路径") or []) or [
     os.path.join(DASH_DIR, "ROI记录表.xlsx"),
+    r"C:\Users\Admin\Documents\ChatGPT\钉钉\ROI记录表.xlsx",
     r"C:\Users\Admin\Desktop\ROI记录表.xlsx",
     r"C:\Users\Admin\Downloads\ROI记录表.xlsx",
     r"C:\Users\Admin\Downloads\易得客下载目录\ROI记录表.xlsx",
-    r"C:\Users\Admin\Documents\ChatGPT\钉钉\ROI记录表.xlsx",
     r"D:\codex-钉钉\ROI记录表.xlsx",
 ]
 # 兜底：在上面这些目录里凡是名字带 ROI 的 xlsx 都算候选（按修改时间取最新）
