@@ -96,6 +96,10 @@ def find_latest_product_info(shop_path):
     return candidates[0][2]
 
 def load_product_map(path):
+    """商品ID -> {category, skus[], code}
+    一个商品常有多个 SKU（变体），这里全部收集；款号 code 取「出现次数最多的 sku_extract 结果」，
+    这样同一商品的多变体会并成一条，而 8684 / 8684AB 这种真不同款仍然是两个 code。
+    """
     pm = {}
     if not os.path.exists(path): return pm
     wb = openpyxl.load_workbook(path, data_only=True, read_only=False)
@@ -121,8 +125,25 @@ def load_product_map(path):
         cat_s = str(r[i_cat]).strip() if i_cat is not None and r[i_cat] is not None else ""
         clean = re.sub(r"\s*\(\d+\)\s*$", "", cat_s).strip()
         sku_s = str(r[i_sku]).strip() if i_sku is not None and r[i_sku] is not None else ""
-        pm[pid_s] = {"category": clean, "category_raw": cat_s, "sku": sku_s}
+        e = pm.setdefault(pid_s, {"category": "", "category_raw": "", "skus": []})
+        if clean and not e["category"]:
+            e["category"] = clean
+            e["category_raw"] = cat_s
+        if sku_s and sku_s not in e["skus"]:
+            e["skus"].append(sku_s)
     wb.close()
+
+    # 每个商品算「主款号」+ 全部款号集合
+    for pid, e in pm.items():
+        codes = [sku_extract(s) for s in e["skus"]]
+        codes = [c for c in codes if c]
+        cnt = {}
+        for c in codes: cnt[c] = cnt.get(c, 0) + 1
+        order = sorted(cnt.items(), key=lambda kv: (-kv[1], -len(kv[0])))
+        e["code"] = order[0][0] if order else ""
+        e["code_all"] = [c for c, _ in order]
+        e["multi_model"] = len(order) > 1
+        e["sku"] = e["skus"][0] if e["skus"] else ""
     return pm
 
 # ---------------------------------------------------------------------------
@@ -346,6 +367,14 @@ def process_shop(name, path):
     days, day_cat = [], {}
     detail_days = []
     unresolved = {}
+    # 销量改为「按商品」从日宽表直接汇总（不依赖订单表）
+    #   spu_qty[款号] / spu_gmv / spu_orders  —— 全期累计
+    #   week_spu[周][款号] = {qty, orders, gmv} —— 周维度
+    #   cat_qty / cat_gmv —— 按品类
+    spu_qty, spu_gmv, spu_orders = {}, {}, {}
+    cat_qty, cat_gmv = {}, {}
+    week_spu = {}
+    multi_model_pids = []
     for d, fp in daily_files:
         wb = openpyxl.load_workbook(fp, data_only=True, read_only=False)
         ws = wb.worksheets[0]
@@ -364,21 +393,39 @@ def process_shop(name, path):
         rows = []
         tot = {k: 0.0 for k in VALUE_FIELDS}
         cat_agg = {}
+        ds = d.strftime("%Y-%m-%d")
+        _om, _wn, _, _ = week_of_date(d)
+        wk_key = f"{_om}-{_wn}"
         for r in raw:
             if len(r) < 30: continue
             pid = str(r[1]).strip() if r[1] is not None else ""
             if not pid: continue
             info = pm.get(pid)
-            code = sku_extract(info["sku"]) if info and info["sku"] else ""
+            code = info["code"] if info and info.get("code") else ""
             cat = info["category"] if info else "未分类"
             g = {k: sum(num(r[i]) for i in v if i < len(r)) for k, v in fields.items()}
             for k in tot: tot[k] += g.get(k, 0.0)
             ca = cat_agg.setdefault(cat, {k: 0.0 for k in ("gmv","orders","qty","exposure","clicks","add_cart","refund")})
             for k in ca: ca[k] += g.get(k, 0.0)
+
+            # 按款号累计（同一商品多变体并成一条；不同款号不合并）
+            if code:
+                spu_qty[code] = spu_qty.get(code, 0.0) + g.get("qty", 0.0)
+                spu_gmv[code] = round(spu_gmv.get(code, 0.0) + g.get("gmv", 0.0), 2)
+                spu_orders[code] = spu_orders.get(code, 0) + int(g.get("orders", 0))
+                wm = week_spu.setdefault(wk_key, {}).setdefault(
+                    code, {"qty": 0.0, "orders": 0, "gmv": 0.0})
+                wm["qty"] += g.get("qty", 0.0)
+                wm["orders"] += int(g.get("orders", 0))
+                wm["gmv"] = round(wm["gmv"] + g.get("gmv", 0.0), 2)
+                cat_qty[cat] = cat_qty.get(cat, 0.0) + g.get("qty", 0.0)
+                cat_gmv[cat] = round(cat_gmv.get(cat, 0.0) + g.get("gmv", 0.0), 2)
+                if info.get("multi_model") and pid not in multi_model_pids:
+                    multi_model_pids.append(pid)
+
             if not code: continue
             row = [code] + [fmt_detail_val(r[i] if i is not None and i < len(r) else None) for i in canon_idx]
             rows.append(row)
-        ds = d.strftime("%Y-%m-%d")
         days.append({
             "date": ds, "label": f"{d.month}月{d.day}日",
             "gmv": round(tot["gmv"], 2),
@@ -443,65 +490,46 @@ def process_shop(name, path):
             for k in cc: cc[k] += cm[k]
     weeks = sorted([w for w in week_map.values() if len(w["days"]) == 7], key=lambda w: (w["month"], w["week"]))
 
+    # ---- 订单表：只保留「渠道销量」和订单明细，不再用于销量榜 ----
     order_files = [os.path.join(path, fn) for fn in os.listdir(path) if fn.endswith(".xlsx") and "订单" in fn]
     order_rows = []
     for p in order_files:
         order_rows.extend(load_orders(p))
 
-    sku_qty, sku_gmv, cat_qty, cat_gmv, channel_qty = {}, {}, {}, {}, {}
-    sku_cat_map = {}
-    cat_sku_map = {}
-
+    channel_qty = {}
     for o in order_rows:
-        if not o["code"]: continue
-        code = o["code"]
-        cat = o["category"] or "未分类"
-        sku_qty[code] = sku_qty.get(code, 0) + o["qty"]
-        sku_gmv[code] = sku_gmv.get(code, 0) + o["gmv"]
-        if cat:
-            cat_qty[cat] = cat_qty.get(cat, 0) + o["qty"]
-            cat_gmv[cat] = cat_gmv.get(cat, 0.0) + o["gmv"]
-            sku_cat_map[code] = cat
-            cat_sku_map.setdefault(cat, set()).add(code)
-        if o["channel"]: channel_qty[o["channel"]] = channel_qty.get(o["channel"], 0) + o["qty"]
+        if o["channel"]:
+            channel_qty[o["channel"]] = channel_qty.get(o["channel"], 0) + o["qty"]
 
-    # 周维度：各 SKU & 各品类的周销量 / 周 GMV / 周订单数
-    week_sku = {}
-    week_sku_gmv = {}
-    week_sku_orders = {}
-    week_cat_qty = {}
-    week_cat_gmv = {}
-    week_cat_orders = {}
+    # ---- 销量榜：全部来自日宽表，按款号（商品）汇总 ----
+    sku_qty = {k: round(v, 2) for k, v in spu_qty.items()}
+    sku_gmv = dict(spu_gmv)
+    sku_cat_map, cat_sku_map = {}, {}
+    for pid, info in pm.items():
+        code = info.get("code")
+        if not code: continue
+        cat = info.get("category") or "未分类"
+        sku_cat_map[code] = cat
+        cat_sku_map.setdefault(cat, set()).add(code)
+
+    # 周维度：各款号 & 各品类的周销量 / 周 GMV / 周订单数
+    week_sku, week_sku_gmv, week_sku_orders = {}, {}, {}
+    week_cat_qty, week_cat_gmv, week_cat_orders = {}, {}, {}
     week_info = {}
-
-    for o in order_rows:
-        if not o["date"] or not o["code"]: continue
-        om, wn, mon, sun = week_of_date(datetime.date.fromisoformat(o["date"]))
-        key = f"{om}-{wn}"
-        code = o["code"]
-        cat = o["category"] or "未分类"
-
-        week_info.setdefault(key, {"monday": mon.strftime("%Y-%m-%d"), "sunday": sun.strftime("%Y-%m-%d")})
-
-        # SKU 统计
-        ws = week_sku.setdefault(key, {})
-        ws[code] = ws.get(code, 0) + o["qty"]
-
-        wg = week_sku_gmv.setdefault(key, {})
-        wg[code] = round(wg.get(code, 0.0) + o["gmv"], 2)
-
-        wo = week_sku_orders.setdefault(key, {})
-        wo[code] = wo.get(code, 0) + 1
-
-        # 品类统计
-        wcq = week_cat_qty.setdefault(key, {})
-        wcq[cat] = wcq.get(cat, 0) + o["qty"]
-
-        wcg = week_cat_gmv.setdefault(key, {})
-        wcg[cat] = round(wcg.get(cat, 0.0) + o["gmv"], 2)
-
-        wco = week_cat_orders.setdefault(key, {})
-        wco[cat] = wco.get(cat, 0) + 1
+    for wk in weeks:
+        key = wk["key"]
+        week_info[key] = {"monday": wk["monday"], "sunday": wk["sunday"]}
+    for key, codes in week_spu.items():
+        for code, m in codes.items():
+            week_sku.setdefault(key, {})[code] = round(m["qty"], 2)
+            week_sku_gmv.setdefault(key, {})[code] = m["gmv"]
+            week_sku_orders.setdefault(key, {})[code] = m["orders"]
+            cat = sku_cat_map.get(code, "未分类")
+            week_cat_qty.setdefault(key, {})[cat] = round(
+                week_cat_qty.setdefault(key, {}).get(cat, 0.0) + m["qty"], 2)
+            week_cat_gmv.setdefault(key, {})[cat] = round(
+                week_cat_gmv.setdefault(key, {}).get(cat, 0.0) + m["gmv"], 2)
+            week_cat_orders.setdefault(key, {})[cat] = week_cat_orders.setdefault(key, {}).get(cat, 0) + m["orders"]
 
     sorted_weeks = sorted(week_info.keys())
     top_skus = [k for k, _ in sorted(sku_qty.items(), key=lambda x: x[1], reverse=True)[:10]]
@@ -545,7 +573,8 @@ def process_shop(name, path):
         "gmv_series": {code: all_sku_gmv_series[code] for code in top_gmv_skus},
     }
 
-    sales_dates = {o["date"] for o in order_rows if o["date"]}
+    # 销量现在来自日宽表，销量区间就用日宽表的范围（订单表不再是销量来源）
+    sales_dates = {x["date"] for x in days}
     return {
         "name": name,
         "range": {"from": days[0]["date"] if days else "", "to": days[-1]["date"] if days else ""},
@@ -600,10 +629,13 @@ def merge_total(shops):
     # 按 (月, 周序号) 排序，不能按字符串排 —— 否则 '10-1' 会排到 '6-1' 前面
     weeks = [wmap[k] for k in sorted(wmap, key=lambda k: (wmap[k]["month"], wmap[k]["week"]))]
 
-    def merge_rank(shops, key):
+    def merge_rank(shops, key, with_shop=False):
+        """with_shop=True 时保留店铺维度（跨店同款不合并，便于两店对比）"""
         agg = {}
         for s in shops:
-            for r in s[key]: agg[r["name"]] = agg.get(r["name"], 0) + r["qty"]
+            for r in s[key]:
+                nm = f"{r['name']}（{s['name']}）" if with_shop else r["name"]
+                agg[nm] = agg.get(nm, 0) + r["qty"]
         return sorted([{"name": k, "qty": v} for k, v in agg.items()], key=lambda x: x["qty"], reverse=True)
 
     all_weeks_set = set()
@@ -723,13 +755,14 @@ def merge_total(shops):
     for s in shops:
         for k in funnel: funnel[k] += s["funnel"][k]
     sales_dates = set()
-    for s in shops: sales_dates.update({o["date"] for o in s["order_rows"] if o["date"]})
+    for s in shops:
+        sales_dates.update({d["date"] for d in s["days"]})
 
     return {
         "name": "TOTAL", "range": {"from": days[0]["date"] if days else "", "to": days[-1]["date"] if days else ""},
         "sales_range": {"from": min(sales_dates) if sales_dates else "", "to": max(sales_dates) if sales_dates else ""},
         "days": days, "weeks": weeks,
-        "sales_rank_sku": merge_rank(shops, "sales_rank_sku"),
+        "sales_rank_sku": merge_rank(shops, "sales_rank_sku", with_shop=True),
         "sales_rank_category": merge_rank(shops, "sales_rank_category"),
         "sales_rank_channel": merge_rank(shops, "sales_rank_channel"),
         "order_rows": [o for s in shops for o in s["order_rows"]],
