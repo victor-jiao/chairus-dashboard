@@ -106,32 +106,150 @@ def load_product_map(path):
     wb.close()
     return pm
 
-DAILY_COLS = {
-    "gmv": 4, "live_gmv": 5, "video_gmv": 8, "affil_gmv": 11, "card_gmv": 18,
-    "orders": 19, "qty": 21, "customers": 22, "exposure": 24, "clicks": 25,
-    "add_cart": 27, "mall_exposure": 42, "mall_clicks": 43, "mall_gmv": 49,
-    "refund": 40, "refund_qty": 41,
-}
+# ---------------------------------------------------------------------------
+# 表头按名取值
+#   不再依赖固定列号：先定位表头行，再用「分组带 + 字段名」精确匹配。
+#   易得客以后换模板、插列、挪列、加指标，只要字段名还在，就能自动命中。
+# ---------------------------------------------------------------------------
+VALUE_FIELDS = ("gmv", "live", "video", "affil", "card", "mall", "orders", "qty",
+                "customers", "exposure", "clicks", "add_cart",
+                "refund", "refund_qty", "mall_exposure", "mall_clicks")
 
-def build_detail_schema(ws):
-    r3 = [c.value for c in ws[3]]
-    r4 = [c.value for c in ws[4]]
-    gmv_idx = 4
-    for idx in range(min(len(r4), 10)):
-        if str(r4[idx] or "").strip() == "GMV":
-            gmv_idx = idx
+
+def _norm(s):
+    s = str(s or "").strip()
+    for a, b in ((" ", ""), ("\u3000", ""), ("（", "("), ("）", ")"),
+                 ("～", "~"), ("－", "-"), ("—", "-"), ("–", "-")):
+        s = s.replace(a, b)
+    return s
+
+
+def build_colmap(ws):
+    """定位表头：同时含『GMV』和『商品 ID』的那一行；它的上一行是分组带（全部/商家直播…）。
+    返回 (列信息列表, 表头行号 1-based)。找不到返回 ([], None)。"""
+    head = [(i, r) for i, r in enumerate(ws.iter_rows(max_row=15, values_only=True), start=1)]
+    hdr_row = None
+    for i, r in head:
+        vals = set(_norm(c) for c in r)
+        if "GMV" in vals and "商品ID" in vals:
+            hdr_row = i
             break
-    keep = []
-    for i in range(len(r4)):
-        if i < gmv_idx: continue
-        h3 = str(r3[i]).strip() if r3[i] is not None else ""
-        h4 = str(r4[i]).strip() if r4[i] is not None else ""
-        merged = (h3 + h4) if h3 else h4
-        if "直播" in h3 or "直播" in h4: continue
-        if "含税 GMV" in merged or "税费" in merged: continue
-        if "去重" in merged: continue
-        keep.append((i, merged))
-    return keep
+    if hdr_row is None:
+        return [], None
+    band_vals = next((r for i, r in head if i == hdr_row - 1), None)
+    hdr_vals = next(r for i, r in head if i == hdr_row)
+    n = max(len(hdr_vals), len(band_vals) if band_vals is not None else 0)
+    cols = []
+    for i in range(n):
+        band_raw = (str(band_vals[i]).strip()
+                    if band_vals is not None and i < len(band_vals) and band_vals[i] is not None else "")
+        name_raw = str(hdr_vals[i]).strip() if i < len(hdr_vals) and hdr_vals[i] is not None else ""
+        cols.append({"i": i, "band": _norm(band_raw), "name": _norm(name_raw),
+                     "full_raw": (band_raw + name_raw) if band_raw else name_raw})
+    return cols, hdr_row
+
+
+def _find(cols, band, name):
+    for c in cols:
+        if c["band"] == band and c["name"] == name:
+            return c["i"]
+    if band != "全部":
+        for c in cols:
+            if c["band"] == "全部" and c["name"] == name:
+                return c["i"]
+    return None
+
+
+def resolve_daily(cols):
+    """业务字段 -> 列号列表（可能是复合字段，例如新模板的达人归因=达人直播+达人视频）。
+    返回 (字段->[列号], 缺失字段列表)。"""
+    out, missing = {}, []
+
+    def one(key, *cands):
+        for band, name in cands:
+            i = _find(cols, band, name)
+            if i is not None:
+                out[key] = [i]
+                return True
+        missing.append(key)
+        return False
+
+    one("gmv", ("全部", "GMV"))
+    one("live", ("全部", "商家直播归因GMV"))
+    one("video", ("全部", "商家视频归因GMV"))
+    one("orders", ("全部", "订单数"))
+    one("qty", ("全部", "商品成交件数"))
+    one("customers", ("全部", "预计客户数"))
+    one("exposure", ("全部", "商品曝光次数"))
+    one("clicks", ("全部", "商品点击量"))
+    one("add_cart", ("全部", "加购次数"))
+    one("refund", ("全部", "退款金额"))
+    one("refund_qty", ("全部", "已退款的商品件数"))
+    one("mall_exposure", ("全部", "商城页商品曝光次数"), ("商城页和搜索", "商品曝光次数"))
+    one("mall_clicks", ("全部", "商城页商品点击量"), ("商城页和搜索", "商品点击量"))
+
+    # 达人联盟 GMV：老模板有合计列；新模板拆成 达人直播归因 + 联盟视频归因
+    i = _find(cols, "全部", "达人归因GMV")
+    if i is not None:
+        out["affil"] = [i]
+    else:
+        parts = [p for p in (_find(cols, "全部", "达人直播归因GMV"),
+                             _find(cols, "全部", "联盟视频归因GMV")) if p is not None]
+        if parts:
+            out["affil"] = parts
+        else:
+            missing.append("affil")
+
+    # 商家商品卡 GMV：新模板整列取消，缺则记 0（口径变化见更新说明）
+    i = _find(cols, "全部", "商家商品卡GMV")
+    out["card"] = [i] if i is not None else []
+
+    # 商城页：老模板『商城页 GMV』；新模板并入『商城页和搜索归因 GMV』
+    i = _find(cols, "全部", "商城页GMV")
+    if i is None:
+        i = _find(cols, "全部", "商城页和搜索归因GMV")
+    if i is not None:
+        out["mall"] = [i]
+    else:
+        missing.append("mall")
+    return out, missing
+
+
+def detail_canonical(ws):
+    """明细表『标准列』：从 GMV 列起，剔除直播类/含税/税费/去重。
+    用最早一天（老模板）算一次，全期沿用 —— 保证 6~11 月明细表头形状完全一致。"""
+    cols, _ = build_colmap(ws)
+    if not cols:
+        return []
+    gmv_i = _find(cols, "全部", "GMV")
+    if gmv_i is None:
+        gmv_i = 0
+    out = []
+    for c in cols:
+        if c["i"] < gmv_i:
+            continue
+        full_raw, band, name = c["full_raw"], c["band"], c["name"]
+        if not full_raw:
+            continue
+        if "直播" in band or "直播" in name:
+            continue
+        norm = _norm(full_raw)
+        if "含税GMV" in norm or "税费" in norm or "去重" in norm:
+            continue
+        out.append((band, name, full_raw))
+    return out
+
+
+def match_canonical(cols, canonical):
+    """把标准列映射到当前文件的真实列号；当前模板没有该列时给 None（取值按 0 处理）。"""
+    pools = {}
+    for c in cols:
+        pools.setdefault((c["band"], c["name"]), []).append(c["i"])
+    out = []
+    for band, name, _full in canonical:
+        pool = pools.get((band, name), [])
+        out.append(pool.pop(0) if pool else None)
+    return out
 
 def fmt_detail_val(v):
     if v is None: return 0
@@ -197,20 +315,35 @@ def process_shop(name, path):
         if d: daily_files.append((d, os.path.join(path, fn)))
     daily_files.sort(key=lambda x: x[0])
 
+    # 明细标准列：用最早一天（老模板）算一次，全期沿用，保证 6~11 月表头形状一致
+    canonical = []
+    try:
+        _wb0 = openpyxl.load_workbook(daily_files[0][1], data_only=True)
+        canonical = detail_canonical(_wb0.worksheets[0])
+        _wb0.close()
+    except Exception as e:
+        print(f"[{name}] 计算标准明细列失败: {e}")
+
     days, day_cat = [], {}
     detail_days = []
+    unresolved = {}
     for d, fp in daily_files:
         wb = openpyxl.load_workbook(fp, data_only=True, read_only=False)
         ws = wb.worksheets[0]
-        raw = [r for r in ws.iter_rows(min_row=5, values_only=True) if (r[1] is not None or r[0] is not None)]
-        schema = build_detail_schema(ws)
-        headers = ["品类"] + [h for _, h in schema]
+        cols, hdr_row = build_colmap(ws)
+        if not cols:
+            print(f"[{name}] {os.path.basename(fp)}: 找不到表头，已跳过")
+            wb.close()
+            continue
+        fields, missing = resolve_daily(cols)
+        if missing:
+            unresolved[os.path.basename(fp)] = missing
+        canon_idx = match_canonical(cols, canonical)
+        headers = ["品类"] + [f for _, _, f in canonical]
+        raw = [r for r in ws.iter_rows(min_row=hdr_row + 1, values_only=True)
+               if len(r) > 1 and (r[1] is not None or r[0] is not None)]
         rows = []
-        r4 = [str(c.value or "").strip() for c in ws[4][:10]]
-        gmv_idx = r4.index("GMV") if "GMV" in r4 else 4
-        offset = gmv_idx - 4
-        daily_cols = {k: v + offset for k, v in DAILY_COLS.items()}
-        tot = {k: 0.0 for k in daily_cols}
+        tot = {k: 0.0 for k in VALUE_FIELDS}
         cat_agg = {}
         for r in raw:
             if len(r) < 30: continue
@@ -219,20 +352,20 @@ def process_shop(name, path):
             info = pm.get(pid)
             code = sku_extract(info["sku"]) if info and info["sku"] else ""
             cat = info["category"] if info else "未分类"
-            g = {k: num(r[i]) if i < len(r) else 0.0 for k, i in daily_cols.items()}
-            for k in tot: tot[k] += g[k]
+            g = {k: sum(num(r[i]) for i in v if i < len(r)) for k, v in fields.items()}
+            for k in tot: tot[k] += g.get(k, 0.0)
             ca = cat_agg.setdefault(cat, {k: 0.0 for k in ("gmv","orders","qty","exposure","clicks","add_cart","refund")})
-            for k in ca: ca[k] += g[k]
+            for k in ca: ca[k] += g.get(k, 0.0)
             if not code: continue
-            row = [code] + [fmt_detail_val(r[i] if i < len(r) else None) for i, _ in schema]
+            row = [code] + [fmt_detail_val(r[i] if i is not None and i < len(r) else None) for i in canon_idx]
             rows.append(row)
         ds = d.strftime("%Y-%m-%d")
         days.append({
             "date": ds, "label": f"{d.month}月{d.day}日",
             "gmv": round(tot["gmv"], 2),
-            "sources": {"mall": round(tot["mall_gmv"],2), "video": round(tot["video_gmv"],2),
-                        "affil": round(tot["affil_gmv"],2), "card": round(tot["card_gmv"],2),
-                        "live": round(tot["live_gmv"],2)},
+            "sources": {"mall": round(tot["mall"],2), "video": round(tot["video"],2),
+                        "affil": round(tot["affil"],2), "card": round(tot["card"],2),
+                        "live": round(tot["live"],2)},
             "orders": int(tot["orders"]), "qty": int(tot["qty"]), "customers": int(tot["customers"]),
             "exposure": int(tot["exposure"]), "clicks": int(tot["clicks"]), "add_cart": int(tot["add_cart"]),
             "refund": round(tot["refund"],2), "refund_qty": int(tot["refund_qty"]),
@@ -242,6 +375,11 @@ def process_shop(name, path):
             day_cat[(ds, cat)] = m
         detail_days.append({"date": ds, "label": f"{d.month}月{d.day}日", "headers": headers, "rows": rows})
         wb.close()
+
+    if unresolved:
+        print(f"[{name}] 有 {len(unresolved)} 个文件的字段没匹配到（按 0 处理）:")
+        for fn, miss in list(unresolved.items())[:10]:
+            print(f"    {fn}: {','.join(miss)}")
 
     # 读取自制视频数据
     self_video_map = {}
@@ -423,8 +561,11 @@ def merge_total(shops):
     for k in sorted(dmap):
         x = dmap[k]; x["categories"] = sorted(x["categories"]); days.append(x)
 
-    key_sets = [set(w["key"] for w in s["weeks"]) for s in shops]
-    common = set.intersection(*key_sets) if key_sets else set()
+    # 总览周维度取【并集】：HOME 等店铺没更新时，合计的周数据不能被截断在个别店铺的最后一周
+    all_keys = set()
+    for s in shops:
+        all_keys.update(w["key"] for w in s["weeks"])
+    common = all_keys
     wmap = {}
     for s in shops:
         for w in s["weeks"]:
@@ -437,7 +578,8 @@ def merge_total(shops):
             for c, m in w["cat"].items():
                 cc = t["cat"].setdefault(c, {"gmv":0.0,"orders":0,"qty":0,"exposure":0,"clicks":0,"add_cart":0})
                 for k in cc: cc[k] += m[k]
-    weeks = [wmap[k] for k in sorted(wmap)]
+    # 按 (月, 周序号) 排序，不能按字符串排 —— 否则 '10-1' 会排到 '6-1' 前面
+    weeks = [wmap[k] for k in sorted(wmap, key=lambda k: (wmap[k]["month"], wmap[k]["week"]))]
 
     def merge_rank(shops, key):
         agg = {}
@@ -452,7 +594,10 @@ def merge_total(shops):
         all_weeks_set.update(ws["weeks"])
         for k, v in ws.get("week_dates", {}).items():
             week_info.setdefault(k, v)
-    sorted_weeks = sorted(all_weeks_set)
+    def _wk_key(k):
+        m = week_info.get(k) or {}
+        return (str(m.get("monday", "")), k)
+    sorted_weeks = sorted(all_weeks_set, key=_wk_key)
 
     sku_tot_qty = {}
     sku_tot_gmv = {}

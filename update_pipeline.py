@@ -3,6 +3,7 @@ import time
 """一键更新数据管道：自动重命名 PLUS 文件 -> 解析所有 Excel -> 聚合双店铺/自制与联盟视频 -> 生成 data.js 与 detail-data.js"""
 import os, re, json, datetime
 import subprocess
+import shutil
 
 PLUS_DIR = r"C:\Users\Admin\Downloads\易得客下载目录\Tiktok-ChairusPlus-焦文浩"
 DASH_DIR = r"D:\codex-钉钉\dashboard"
@@ -189,16 +190,49 @@ if os.path.exists(html_path):
 
 
 # 5. 自动从《ROI记录表.xlsx》读取并固化 ROI 到 roi_data.js
-roi_excel_path = os.path.join(DASH_DIR, "ROI记录表.xlsx")
-# 如果用户放在了易得客目录或桌面，也自动查找
+#    铁律：只合并不覆盖；找不到表就保持原样；写之前先备份
+roi_js_path = os.path.join(DASH_DIR, "roi_data.js")
+
+
+def load_existing_roi(path):
+    """读取现有 roi_data.js 作为合并底稿，绝不丢失已录入的 ROI"""
+    if not os.path.exists(path):
+        return {}
+    try:
+        txt = open(path, encoding="utf-8").read()
+        m = re.search(r"window\.DEFAULT_ROI\s*=\s*(\{.*\})\s*;", txt, re.S)
+        return json.loads(m.group(1)) if m else {}
+    except Exception as e:
+        print(f"读取现有 roi_data.js 失败: {e}")
+        return {}
+
+
 possible_roi_paths = [
-    roi_excel_path,
+    os.path.join(DASH_DIR, "ROI记录表.xlsx"),
     r"C:\Users\Admin\Desktop\ROI记录表.xlsx",
     r"C:\Users\Admin\Downloads\ROI记录表.xlsx",
-    r"C:\Users\Admin\Downloads\易得客下载目录\ROI记录表.xlsx"
+    r"C:\Users\Admin\Downloads\易得客下载目录\ROI记录表.xlsx",
+    r"C:\Users\Admin\Documents\ChatGPT\钉钉\ROI记录表.xlsx",
+    r"D:\codex-钉钉\ROI记录表.xlsx",
 ]
+# 兜底：在上面这些目录里凡是名字带 ROI 的 xlsx 都算候选（按修改时间取最新）
+for _d in (r"C:\Users\Admin\Documents\ChatGPT\钉钉", r"C:\Users\Admin\Desktop",
+           r"C:\Users\Admin\Downloads", DASH_DIR, r"D:\codex-钉钉"):
+    try:
+        if os.path.isdir(_d):
+            for _f in os.listdir(_d):
+                if _f.lower().endswith(".xlsx") and ("roi" in _f.lower()) and not _f.startswith("~$"):
+                    _p = os.path.join(_d, _f)
+                    if _p not in possible_roi_paths:
+                        possible_roi_paths.append(_p)
+    except Exception as e:
+        print(f"扫描 ROI 表路径出错 {_d}: {e}")
 
-roi_dict = {}
+existing_roi = load_existing_roi(roi_js_path)
+roi_dict = dict(existing_roi)          # 以现有为底，Excel 覆盖追加
+from_excel = {}
+used_roi_path = None
+
 for rp in possible_roi_paths:
     if os.path.exists(rp):
         try:
@@ -208,28 +242,36 @@ for rp in possible_roi_paths:
                 if not r or r[0] is None: continue
                 d_str = str(r[0]).strip()[:10].replace("/", "-")
                 if len(d_str) < 8 or "日期" in d_str: continue
-                # CHAIRUS ROI
-                if len(r) > 1 and r[1] is not None and str(r[1]).strip():
-                    try: roi_dict[f"CHAIRUS|{d_str}"] = float(str(r[1]).strip().replace("$",""))
-                    except: pass
-                # PLUS ROI
-                if len(r) > 2 and r[2] is not None and str(r[2]).strip():
-                    try: roi_dict[f"PLUS|{d_str}"] = float(str(r[2]).strip().replace("$",""))
-                    except: pass
-                # HOME ROI
-                if len(r) > 3 and r[3] is not None and str(r[3]).strip():
-                    try: roi_dict[f"HOME|{d_str}"] = float(str(r[3]).strip().replace("$",""))
-                    except: pass
+                for idx, shop in ((1, "CHAIRUS"), (2, "PLUS"), (3, "HOME")):
+                    if len(r) > idx and r[idx] is not None and str(r[idx]).strip():
+                        try:
+                            v = float(str(r[idx]).strip().replace("$", "").replace("%", ""))
+                            from_excel[f"{shop}|{d_str}"] = v
+                        except Exception:
+                            pass
             wb_roi.close()
-            print(f"Loaded {len(roi_dict)} ROI records from {rp}")
+            used_roi_path = rp
+            print(f"Loaded {len(from_excel)} ROI records from {rp}")
             break
         except Exception as e:
             print(f"Error reading ROI excel {rp}: {e}")
 
-# 写入 roi_data.js
-roi_js_path = os.path.join(DASH_DIR, "roi_data.js")
-with open(roi_js_path, "w", encoding="utf-8") as f:
-    f.write("window.DEFAULT_ROI = " + json.dumps(roi_dict, ensure_ascii=False, indent=2) + ";\n")
-print(f"Updated roi_data.js with {len(roi_dict)} items!")
+if not from_excel:
+    print("!! 没有找到可用的 ROI 表，roi_data.js 保持不变（防止被清空）")
+else:
+    roi_dict.update(from_excel)        # Excel 里有的以 Excel 为准
+    # 写前备份，放到仓库外的 _backup_roi 目录，避免污染 git
+    try:
+        bak_dir = os.path.join(os.path.dirname(DASH_DIR), "_backup_roi")
+        os.makedirs(bak_dir, exist_ok=True)
+        if os.path.exists(roi_js_path):
+            ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            shutil.copy2(roi_js_path, os.path.join(bak_dir, f"roi_data_{ts}.js"))
+    except Exception as e:
+        print(f"备份 roi_data.js 失败（继续）: {e}")
+
+    with open(roi_js_path, "w", encoding="utf-8") as f:
+        f.write("window.DEFAULT_ROI = " + json.dumps(roi_dict, ensure_ascii=False, indent=2) + ";\n")
+    print(f"roi_data.js 已合并写入: Excel {len(from_excel)} 条 + 原有 {len(existing_roi)} 条 -> 合并后 {len(roi_dict)} 条")
 
 print("Pipeline finished successfully!")
